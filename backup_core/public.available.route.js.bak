@@ -1,0 +1,80 @@
+﻿import { neon } from "@neondatabase/serverless";
+
+const sql = neon(process.env.DATABASE_URL);
+
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const tenantId = searchParams.get('tenant_id') || 1;
+    const date = searchParams.get('date');
+
+    if (!date) {
+      return Response.json({ error: 'Data é obrigatória' }, { status: 400 });
+    }
+
+    // 1. Buscar configurações da barbearia (horário de funcionamento e intervalo)
+    const settings = await sql`
+      SELECT opening_time, closing_time, appointment_interval
+      FROM tenant_settings
+      WHERE tenant_id = ${tenantId}
+      LIMIT 1
+    `;
+
+    if (settings.length === 0) {
+      return Response.json({ times: [] });
+    }
+
+    const { opening_time, closing_time, appointment_interval } = settings[0];
+    const interval = appointment_interval || 30; // padrão 30 minutos
+
+    // 2. Gerar todos os horários do dia baseado no funcionamento
+    const allSlots = generateTimeSlots(opening_time, closing_time, interval);
+
+    // 3. Buscar agendamentos já reservados para essa data
+    const appointments = await sql`
+      SELECT time FROM appointments
+      WHERE tenant_id = ${tenantId}
+      AND date = ${date}
+      ORDER BY time ASC
+    `;
+    
+    // 4. Converter horários ocupados para HH:MM
+    const occupiedTimes = appointments.map(apt => 
+      apt.time.substring(0, 5)
+    );
+
+    // 5. Marcar quais horários estão disponíveis
+    const availableTimes = allSlots.map(time => ({
+      time,
+      available: !occupiedTimes.includes(time)
+    }));
+
+    return Response.json({ times: availableTimes });
+  } catch (error) {
+    console.error('Erro ao buscar horários:', error);
+    return Response.json({ times: [] });
+  }
+}
+
+function generateTimeSlots(startTime, endTime, intervalMinutes) {
+  const slots = [];
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+
+  let currentHour = startHour;
+  let currentMin = startMin;
+  const endTotalMin = endHour * 60 + endMin;
+
+  while (currentHour * 60 + currentMin < endTotalMin) {
+    const timeStr = `${String(currentHour).padStart(2, '0')}:${String(currentMin).padStart(2, '0')}`;
+    slots.push(timeStr);
+
+    currentMin += intervalMinutes;
+    if (currentMin >= 60) {
+      currentHour += Math.floor(currentMin / 60);
+      currentMin = currentMin % 60;
+    }
+  }
+
+  return slots;
+}

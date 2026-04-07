@@ -1,0 +1,77 @@
+import { neon } from "@neondatabase/serverless";
+
+const sql = neon(process.env.DATABASE_URL || "postgresql://neondb_owner:npg_7wf2zvycPOLu@ep-fancy-union-ant4i16j-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require");
+
+// GET - Buscar configurações de horários
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const tenantId = searchParams.get("tenant_id") || 1;
+
+    // Criar tabela se não existir
+    await sql`
+      CREATE TABLE IF NOT EXISTS appointment_settings (
+        id SERIAL PRIMARY KEY,
+        tenant_id INT NOT NULL,
+        interval_minutes INT DEFAULT 30,
+        start_time VARCHAR(5) DEFAULT '09:00',
+        end_time VARCHAR(5) DEFAULT '21:00',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(tenant_id)
+      )
+    `;
+
+    const result = await sql`
+      SELECT * FROM appointment_settings WHERE tenant_id = ${ parseInt(tenantId) }
+    `;
+
+    if (result.length === 0) {
+      // Criar configuração padrão
+      const defaultSettings = await sql`
+        INSERT INTO appointment_settings (tenant_id, interval_minutes, start_time, end_time)
+        VALUES (${ parseInt(tenantId) }, 30, '09:00', '21:00')
+        RETURNING *
+      `;
+      return Response.json(defaultSettings[0]);
+    }
+
+    return Response.json(result[0]);
+  } catch (error) {
+    console.error("Erro ao buscar configurações:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// POST - Atualizar configurações de horários
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    const { tenantId, intervalMinutes, startTime, endTime } = body;
+
+    const result = await sql`
+      UPDATE appointment_settings 
+      SET interval_minutes = ${ intervalMinutes }, 
+          start_time = ${ startTime }, 
+          end_time = ${ endTime },
+          updated_at = NOW()
+      WHERE tenant_id = ${ parseInt(tenantId) }
+      RETURNING *
+    `;
+
+    if (result.length === 0) {
+      // Se não existir, criar
+      const newSettings = await sql`
+        INSERT INTO appointment_settings (tenant_id, interval_minutes, start_time, end_time)
+        VALUES (${ parseInt(tenantId) }, ${ intervalMinutes }, ${ startTime }, ${ endTime })
+        RETURNING *
+      `;
+      return Response.json(newSettings[0]);
+    }
+
+    return Response.json(result[0]);
+  } catch (error) {
+    console.error("Erro ao atualizar configurações:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}

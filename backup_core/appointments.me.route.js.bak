@@ -1,0 +1,166 @@
+﻿import { neon } from "@neondatabase/serverless";
+import jwt from "jsonwebtoken";
+
+const sql = neon(process.env.DATABASE_URL);
+
+function getTenantIdAndUserIdFromRequest(req) {
+  try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) return { tenantId: null, userId: null };
+    
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-secret-key");
+    return { tenantId: decoded.tenant_id, userId: decoded.id };
+  } catch (err) {
+    console.error("Erro ao decodificar token:", err.message);
+    return { tenantId: null, userId: null };
+  }
+}
+
+/**
+ * GET /api/appointments/me
+ * Lista agendamentos do barbeiro logado
+ * ✅ SEGURO: Backend valida pelo JWT
+ */
+export async function GET(req) {
+  try {
+    const { tenantId, userId } = getTenantIdAndUserIdFromRequest(req);
+    
+    if (!tenantId || !userId) {
+      return Response.json(
+        { error: "Não autorizado - token inválido ou ausente" },
+        { status: 401 }
+      );
+    }
+
+    // ✅ BUSCAR O BARBEIRO PELO USER_ID
+    const barber = await sql`
+      SELECT id FROM barbers
+      WHERE id = ${userId}
+      AND tenant_id = ${tenantId}
+      LIMIT 1
+    `;
+
+    if (barber.length === 0) {
+      return Response.json(
+        { error: "Barbeiro não encontrado" },
+        { status: 404 }
+      );
+    }
+
+    const barberId = barber[0].id;
+
+    // ✅ BUSCAR AGENDAMENTOS DO BARBEIRO
+    const { searchParams } = new URL(req.url);
+    const date = searchParams.get("date");
+
+    let query;
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      query = sql`
+        SELECT a.id, a.tenant_id, a.barber_id, a.date, a.time, a.phone, a.created_at
+        FROM appointments a
+        WHERE a.tenant_id = ${tenantId}
+        AND a.barber_id = ${barberId}
+        AND a.date = ${date}
+        ORDER BY a.time ASC
+      `;
+    } else {
+      query = sql`
+        SELECT a.id, a.tenant_id, a.barber_id, a.date, a.time, a.phone, a.created_at
+        FROM appointments a
+        WHERE a.tenant_id = ${tenantId}
+        AND a.barber_id = ${barberId}
+        ORDER BY a.date DESC, a.time DESC
+      `;
+    }
+
+    const data = await query;
+    return Response.json({ success: true, data }, { status: 200 });
+  } catch (error) {
+    console.error("ERRO GET APPOINTMENTS/ME:", error);
+    return Response.json(
+      { error: "Erro ao buscar agendamentos. Tente novamente." },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/appointments/me?id={id}
+ * Deleta um agendamento do barbeiro logado
+ * ✅ SEGURO: Valida que o agendamento pertence ao barbeiro
+ */
+export async function DELETE(req) {
+  try {
+    const { tenantId, userId } = getTenantIdAndUserIdFromRequest(req);
+    
+    if (!tenantId || !userId) {
+      return Response.json(
+        { error: "Não autorizado - token inválido ou ausente" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id || isNaN(parseInt(id))) {
+      return Response.json(
+        { error: "ID do agendamento inválido" },
+        { status: 400 }
+      );
+    }
+
+    // ✅ BUSCAR O BARBEIRO
+    const barber = await sql`
+      SELECT id FROM barbers
+      WHERE id = ${userId}
+      AND tenant_id = ${tenantId}
+      LIMIT 1
+    `;
+
+    if (barber.length === 0) {
+      return Response.json(
+        { error: "Barbeiro não encontrado" },
+        { status: 404 }
+      );
+    }
+
+    const barberId = barber[0].id;
+
+    // ✅ VERIFICAR SE O AGENDAMENTO PERTENCE AO BARBEIRO
+    const appointment = await sql`
+      SELECT id FROM appointments
+      WHERE id = ${parseInt(id)}
+      AND tenant_id = ${tenantId}
+      AND barber_id = ${barberId}
+      LIMIT 1
+    `;
+
+    if (appointment.length === 0) {
+      return Response.json(
+        { error: "Agendamento não encontrado ou não autorizado" },
+        { status: 403 }
+      );
+    }
+
+    // ✅ DELETAR
+    await sql`
+      DELETE FROM appointments
+      WHERE id = ${parseInt(id)}
+      AND tenant_id = ${tenantId}
+      AND barber_id = ${barberId}
+    `;
+
+    return Response.json(
+      { success: true, message: "Agendamento deletado com sucesso" },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("ERRO DELETE APPOINTMENTS/ME:", error);
+    return Response.json(
+      { error: "Erro ao deletar agendamento. Tente novamente." },
+      { status: 500 }
+    );
+  }
+}

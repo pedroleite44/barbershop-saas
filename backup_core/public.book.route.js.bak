@@ -1,0 +1,82 @@
+import { neon } from "@neondatabase/serverless";
+
+const sql = neon(process.env.DATABASE_URL || "postgresql://neondb_owner:npg_7wf2zvycPOLu@ep-fancy-union-ant4i16j-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require");
+
+// POST - Criar nova reserva
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    const { tenantId, barberId, clientName, clientPhone, appointmentDate, appointmentTime } = body;
+
+    if (!tenantId || !clientName || !clientPhone || !appointmentDate || !appointmentTime) {
+      return Response.json({ error: "Dados incompletos" }, { status: 400 });
+    }
+
+    // Criar tabela de appointments se não existir
+    await sql`
+      CREATE TABLE IF NOT EXISTS appointments (
+        id SERIAL PRIMARY KEY,
+        tenant_id INT NOT NULL,
+        barber_id INT,
+        client_name VARCHAR(255) NOT NULL,
+        client_phone VARCHAR(20) NOT NULL,
+        appointment_date DATE NOT NULL,
+        appointment_time VARCHAR(5) NOT NULL,
+        status VARCHAR(50) DEFAULT 'confirmed',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+    // Verificar se o horário já está reservado
+    const existing = await sql`
+      SELECT * FROM appointments 
+      WHERE tenant_id = ${ parseInt(tenantId) } 
+      AND appointment_date = ${ appointmentDate }
+      AND appointment_time = ${ appointmentTime }
+      AND status = 'confirmed'
+    `;
+
+    if (existing.length > 0) {
+      return Response.json({ error: "Horário já reservado" }, { status: 409 });
+    }
+
+    // Criar reserva
+    const result = await sql`
+      INSERT INTO appointments (tenant_id, barber_id, client_name, client_phone, appointment_date, appointment_time, status)
+      VALUES (${ parseInt(tenantId) }, ${ barberId ? parseInt(barberId) : null }, ${ clientName }, ${ clientPhone }, ${ appointmentDate }, ${ appointmentTime }, 'confirmed')
+      RETURNING *
+    `;
+
+    return Response.json(result[0], { status: 201 });
+  } catch (error) {
+    console.error("Erro ao criar reserva:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// GET - Listar reservas de um dia
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const tenantId = searchParams.get("tenant_id") || 1;
+    const date = searchParams.get("date");
+
+    if (!date) {
+      return Response.json({ error: "Data é obrigatória" }, { status: 400 });
+    }
+
+    const result = await sql`
+      SELECT * FROM appointments 
+      WHERE tenant_id = ${ parseInt(tenantId) } 
+      AND appointment_date = ${ date }
+      AND status = 'confirmed'
+      ORDER BY appointment_time
+    `;
+
+    return Response.json(result);
+  } catch (error) {
+    console.error("Erro ao listar reservas:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}

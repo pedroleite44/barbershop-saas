@@ -1,0 +1,86 @@
+﻿import { neon } from "@neondatabase/serverless";
+import bcryptjs from "bcryptjs";
+import jwt from "jsonwebtoken";
+
+const sql = neon(process.env.DATABASE_URL);
+
+/**
+ * POST /api/auth/login
+ * Faz login e retorna JWT
+ */
+export async function POST(req) {
+  try {
+    const body = await req.json();
+    const { email, password } = body;
+
+    if (!email || !password) {
+      return Response.json(
+        { error: "Email e senha são obrigatórios" },
+        { status: 400 }
+      );
+    }
+
+    // Buscar usuário
+    const users = await sql`
+      SELECT u.id, u.tenant_id, u.name, u.email, u.password, u.role, t.name as tenant_name
+      FROM users u
+      JOIN tenants t ON u.tenant_id = t.id
+      WHERE u.email = ${email}
+      LIMIT 1
+    `;
+
+    if (users.length === 0) {
+      return Response.json(
+        { error: "Email ou senha incorretos" },
+        { status: 401 }
+      );
+    }
+
+    const user = users[0];
+
+    // Verificar senha
+    const passwordMatch = await bcryptjs.compare(password, user.password);
+    if (!passwordMatch) {
+      return Response.json(
+        { error: "Email ou senha incorretos" },
+        { status: 401 }
+      );
+    }
+
+    // ✅ GERAR JWT (SEM COOKIE)
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        tenant_id: user.tenant_id,
+        role: user.role,
+      },
+      process.env.JWT_SECRET || "your-secret-key",
+      { expiresIn: "7d" }
+    );
+
+    // ✅ RETORNAR TOKEN NO BODY (não no cookie)
+    return Response.json(
+      {
+        success: true,
+        message: "Login realizado com sucesso",
+        token: token, // ← TOKEN AQUI!
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          tenant_id: user.tenant_id,
+          tenant_name: user.tenant_name,
+        },
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("ERRO LOGIN:", error);
+    return Response.json(
+      { error: "Erro ao fazer login. Tente novamente." },
+      { status: 500 }
+    );
+  }
+}

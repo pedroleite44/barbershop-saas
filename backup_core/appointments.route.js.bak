@@ -1,0 +1,119 @@
+﻿import { neon } from "@neondatabase/serverless";
+import jwt from "jsonwebtoken";
+
+const sql = neon(process.env.DATABASE_URL);
+
+// ✅ FUNÇÃO PARA EXTRAIR TOKEN DO HEADER
+function getTenantIdFromRequest(req) {
+  try {
+    const authHeader = req.headers.get("authorization");
+    
+    if (!authHeader) {
+      console.error("❌ Sem header Authorization");
+      return null;
+    }
+    
+    const token = authHeader.substring(7);
+    
+    if (!token) {
+      console.error("❌ Token vazio");
+      return null;
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-secret-key");
+    console.log("✅ Token decodificado:", decoded);
+    return decoded.tenant_id;
+  } catch (err) {
+    console.error("❌ Erro ao decodificar token:", err.message);
+    return null;
+  }
+}
+
+export async function GET(req) {
+  try {
+    const tenantId = getTenantIdFromRequest(req);
+    
+    if (!tenantId) {
+      return Response.json(
+        { error: "Não autorizado - token inválido ou ausente" },
+        { status: 401 }
+      );
+    }
+
+    const data = await sql`
+      SELECT id, tenant_id, barber_id, date, time, phone, created_at
+      FROM appointments
+      WHERE tenant_id = ${tenantId}
+      ORDER BY date DESC, time DESC
+    `;
+
+    return Response.json(data);
+  } catch (error) {
+    console.error("ERRO GET APPOINTMENTS:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(req) {
+  try {
+    const tenantId = getTenantIdFromRequest(req);
+    
+    if (!tenantId) {
+      return Response.json(
+        { error: "Não autorizado - token inválido ou ausente" },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+    const { barber_id, date, time, phone } = body;
+
+    if (!barber_id || !date || !time || !phone) {
+      return Response.json(
+        { error: "Todos os campos são obrigatórios" },
+        { status: 400 }
+      );
+    }
+
+    const result = await sql`
+      INSERT INTO appointments (tenant_id, barber_id, date, time, phone, created_at)
+      VALUES (${tenantId}, ${barber_id}, ${date}, ${time}, ${phone}, NOW())
+      RETURNING *
+    `;
+
+    return Response.json(result[0], { status: 201 });
+  } catch (error) {
+    console.error("ERRO POST APPOINTMENTS:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req) {
+  try {
+    const tenantId = getTenantIdFromRequest(req);
+    
+    if (!tenantId) {
+      return Response.json(
+        { error: "Não autorizado - token inválido ou ausente" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return Response.json({ error: "ID é obrigatório" }, { status: 400 });
+    }
+
+    await sql`
+      DELETE FROM appointments
+      WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+
+    return Response.json({ success: true, message: "Agendamento deletado" });
+  } catch (error) {
+    console.error("ERRO DELETE APPOINTMENTS:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}

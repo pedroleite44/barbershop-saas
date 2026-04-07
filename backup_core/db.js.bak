@@ -1,0 +1,48 @@
+import { neon } from "@neondatabase/serverless";
+
+const sql = neon(process.env.DATABASE_URL || "postgresql://neondb_owner:npg_7wf2zvycPOLu@ep-fancy-union-ant4i16j-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require");
+
+// Inicializar tabelas
+export async function initDatabase() {
+  try {
+    // Tabela de configuração de horários
+    await sql`
+      CREATE TABLE IF NOT EXISTS appointment_settings (
+        id SERIAL PRIMARY KEY,
+        tenant_id INT NOT NULL,
+        interval_minutes INT DEFAULT 30,
+        start_time VARCHAR(5) DEFAULT '09:00',
+        end_time VARCHAR(5) DEFAULT '21:00',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(tenant_id)
+      )
+    `;
+
+    // Tabela de reservas
+    await sql`
+      CREATE TABLE IF NOT EXISTS appointments (
+        id SERIAL PRIMARY KEY,
+        tenant_id INT NOT NULL,
+        barber_id INT,
+        client_name VARCHAR(255) NOT NULL,
+        client_phone VARCHAR(20) NOT NULL,
+        appointment_date DATE NOT NULL,
+        appointment_time VARCHAR(5) NOT NULL,
+        status VARCHAR(50) DEFAULT 'confirmed',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+    // Índices para performance
+    await sql`CREATE INDEX IF NOT EXISTS idx_appointments_tenant_date ON appointments(tenant_id, appointment_date)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_appointments_tenant_time ON appointments(tenant_id, appointment_date, appointment_time)`;
+
+    console.log("✅ Tabelas criadas com sucesso");
+  } catch (error) {
+    console.error("❌ Erro ao criar tabelas:", error);
+  }
+}
+
+export { sql };

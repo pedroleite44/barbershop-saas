@@ -1,0 +1,25 @@
+import { NextResponse } from "next/server";
+
+export function middleware(request) {
+  const token = request.cookies.get("auth_token")?.value;
+  const pathname = request.nextUrl.pathname;
+
+  // Rotas protegidas que requerem autenticação
+  const protectedRoutes = ["/dashboard/admin", "/dashboard/barbeiro"];
+
+  // Verificar se é uma rota protegida
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    pathname.startsWith(route)
+  );
+
+  if (isProtectedRoute && !token) {
+    // Redirecionar para login se não tiver token
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/dashboard/:path*"],
+};

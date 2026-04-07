@@ -1,0 +1,18 @@
+﻿/**
+ * POST /api/auth/logout
+ * Faz logout (apenas limpa no frontend)
+ */
+export async function POST(req) {
+  try {
+    return Response.json(
+      { success: true, message: "Logout realizado com sucesso" },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("ERRO LOGOUT:", error);
+    return Response.json(
+      { error: "Erro ao fazer logout" },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,25 @@
+﻿hero: {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '80px 40px',
+  backgroundColor: '#000',
+  gap: '60px',
+  maxWidth: '1200px',
+  margin: '0 auto',
+},
+
+heroImage: {
+  flex: 1,
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  maxWidth: '500px',
+},
+
+heroImageActual: {
+  width: '100%',
+  height: '500px',
+  objectFit: 'cover',
+  borderRadius: '12px',
+}

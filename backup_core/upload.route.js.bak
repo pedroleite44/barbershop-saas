@@ -1,0 +1,142 @@
+﻿import { neon } from "@neondatabase/serverless";
+import jwt from "jsonwebtoken";
+import fs from "fs";
+import path from "path";
+
+const sql = neon(process.env.DATABASE_URL);
+
+function getTenantIdFromRequest(req) {
+  try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) return null;
+    
+    const token = authHeader.substring(7);
+    if (!token) return null;
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-secret-key");
+    return decoded.tenant_id;
+  } catch (err) {
+    console.error("❌ Erro ao decodificar token:", err.message);
+    return null;
+  }
+}
+
+export async function POST(req) {
+  try {
+    const tenantId = getTenantIdFromRequest(req);
+    
+    if (!tenantId) {
+      return Response.json(
+        { error: "Não autorizado" },
+        { status: 401 }
+      );
+    }
+
+    const formData = await req.formData();
+    const file = formData.get("file");
+    const type = formData.get("type") || "gallery";
+
+    if (!file) {
+      return Response.json(
+        { error: "Arquivo não fornecido" },
+        { status: 400 }
+      );
+    }
+
+    const uploadsDir = path.join(process.cwd(), "public", "uploads", tenantId.toString());
+    
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const filename = `${Date.now()}-${file.name}`;
+    const filepath = path.join(uploadsDir, filename);
+    const buffer = await file.arrayBuffer();
+    
+    fs.writeFileSync(filepath, Buffer.from(buffer));
+
+    const fileUrl = `/uploads/${tenantId}/${filename}`;
+
+    if (type === "gallery") {
+      const result = await sql`
+        INSERT INTO tenant_gallery (tenant_id, image_url, created_at)
+        VALUES (${tenantId}, ${fileUrl}, NOW())
+        RETURNING *
+      `;
+      return Response.json(result[0], { status: 201 });
+    } else if (type === "banner") {
+      await sql`
+        UPDATE tenant_settings
+        SET banner_url = ${fileUrl}
+        WHERE tenant_id = ${tenantId}
+      `;
+      return Response.json({ success: true, url: fileUrl }, { status: 200 });
+    } else if (type === "logo") {
+      await sql`
+        UPDATE tenant_settings
+        SET logo_url = ${fileUrl}
+        WHERE tenant_id = ${tenantId}
+      `;
+      return Response.json({ success: true, url: fileUrl }, { status: 200 });
+    }
+
+  } catch (error) {
+    console.error("ERRO UPLOAD:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function GET(req) {
+  try {
+    const tenantId = getTenantIdFromRequest(req);
+    
+    if (!tenantId) {
+      return Response.json(
+        { error: "Não autorizado" },
+        { status: 401 }
+      );
+    }
+
+    const data = await sql`
+      SELECT id, tenant_id, image_url, created_at
+      FROM tenant_gallery
+      WHERE tenant_id = ${tenantId}
+      ORDER BY created_at DESC
+    `;
+
+    return Response.json(data);
+  } catch (error) {
+    console.error("ERRO GET GALLERY:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req) {
+  try {
+    const tenantId = getTenantIdFromRequest(req);
+    
+    if (!tenantId) {
+      return Response.json(
+        { error: "Não autorizado" },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return Response.json({ error: "ID é obrigatório" }, { status: 400 });
+    }
+
+    await sql`
+      DELETE FROM tenant_gallery
+      WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+
+    return Response.json({ success: true, message: "Foto deletada" });
+  } catch (error) {
+    console.error("ERRO DELETE GALLERY:", error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
