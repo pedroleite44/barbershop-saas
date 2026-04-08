@@ -9,8 +9,16 @@ export default function LandingPage() {
   const [barbers, setBarbers] = useState([]);
   const [services, setServices] = useState([]);
   const [tenantId, setTenantId] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    
     const subdomain = window.location.hostname.split('.')[0];
     const subdomainMap = {
       'localhost': 1,
@@ -22,26 +30,24 @@ export default function LandingPage() {
     setTenantId(id);
     
     fetchData(id);
+
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   async function fetchData(id) {
     try {
-      // Buscar configurações (cores, logo, banner, etc)
       const settingsResponse = await fetch(`/api/public/settings?tenant_id=${id}`);
       const settingsData = await settingsResponse.json();
       setSettings(settingsData.data || settingsData);
 
-      // Buscar galeria de fotos
       const galleryResponse = await fetch(`/api/public/gallery?tenant_id=${id}`);
       const galleryData = await galleryResponse.json();
       setGallery(galleryData.data || []);
 
-      // Buscar barbeiros da equipe
       const barbersResponse = await fetch(`/api/public/barbers?tenant_id=${id}`);
       const barbersData = await barbersResponse.json();
       setBarbers(barbersData.data || []);
 
-      // ✅ BUSCAR SERVIÇOS DO BANCO DE DADOS (CONECTADO AO ADM)
       const servicesResponse = await fetch(`/api/services?tenant_id=${id}`);
       const servicesData = await servicesResponse.json();
       setServices(servicesData.data || []);
@@ -65,7 +71,6 @@ export default function LandingPage() {
   };
 
   const handleInstagram = () => {
-    // CORREÇÃO: Usa o link do Instagram das configurações se existir
     const instagramUrl = settings?.instagram_url || 'https://instagram.com';
     window.open(instagramUrl, '_blank');
   };
@@ -85,27 +90,76 @@ export default function LandingPage() {
   const dynamicStyles = {
     ...styles,
     container: { ...styles.container, backgroundColor: secondaryColor },
-    header: { ...styles.header, backgroundColor: secondaryColor, borderBottomColor: primaryColor },
-    logo: { ...styles.logo, color: primaryColor },
-    logoText: { ...styles.logoText, color: primaryColor },
-    headerTitle: { ...styles.headerTitle, color: primaryColor },
+    header: { 
+      ...styles.header, 
+      backgroundColor: secondaryColor, 
+      borderBottomColor: primaryColor,
+      padding: isMobile ? '15px 20px' : '20px 40px',
+    },
+    logoText: { ...styles.logoText, color: primaryColor, fontSize: isMobile ? '20px' : '24px' },
+    hero: { 
+      ...styles.hero, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '120px 20px 60px' : '160px 40px 100px',
+      textAlign: isMobile ? 'center' : 'left',
+    },
+    heroTitle: {
+      ...styles.heroTitle,
+      fontSize: isMobile ? '40px' : '64px',
+    },
+    heroSubtitle: {
+      ...styles.heroSubtitle,
+      fontSize: isMobile ? '16px' : '18px',
+      margin: isMobile ? '0 auto 30px' : '0 0 40px',
+    },
+    heroButtons: {
+      ...styles.heroButtons,
+      justifyContent: isMobile ? 'center' : 'flex-start',
+    },
     heroTitleRed: { ...styles.heroTitleRed, color: primaryColor },
     buttonPrimary: { ...styles.buttonPrimary, backgroundColor: primaryColor, color: accentColor },
     buttonSecondary: { ...styles.buttonSecondary, color: primaryColor, borderColor: primaryColor, backgroundColor: accentColor },
-    sectionTitle: { ...styles.sectionTitle, color: primaryColor },
+    sectionTitle: { 
+      ...styles.sectionTitle, 
+      color: primaryColor,
+      fontSize: isMobile ? '32px' : '40px',
+      marginBottom: isMobile ? '40px' : '60px',
+    },
+    services: { 
+      ...styles.services, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '60px 20px' : '100px 40px',
+    },
     serviceCardHighlight: { ...styles.serviceCardHighlight, borderColor: primaryColor, backgroundColor: accentColor },
     servicePrice: { ...styles.servicePrice, color: primaryColor },
+    cutsGallery: { 
+      ...styles.cutsGallery, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '60px 20px' : '100px 40px',
+    },
+    team: { 
+      ...styles.team, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '60px 20px' : '100px 40px',
+    },
     teamRole: { ...styles.teamRole, color: primaryColor },
+    finalCta: { 
+      ...styles.finalCta, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '60px 20px' : '100px 40px',
+    },
+    ctaTitle: {
+      ...styles.ctaTitle,
+      fontSize: isMobile ? '32px' : '48px',
+    },
+    ctaSubtitle: {
+      ...styles.ctaSubtitle,
+      fontSize: isMobile ? '16px' : '18px',
+    },
     ctaTitleRed: { ...styles.ctaTitleRed, color: primaryColor },
     ctaButtonPrimary: { ...styles.ctaButtonPrimary, backgroundColor: primaryColor, color: accentColor },
     ctaButtonSecondary: { ...styles.ctaButtonSecondary, color: primaryColor, borderColor: primaryColor, backgroundColor: accentColor },
-    hero: { ...styles.hero, backgroundColor: secondaryColor },
-    services: { ...styles.services, backgroundColor: secondaryColor },
-    gallery: { ...styles.gallery, backgroundColor: secondaryColor },
-    team: { ...styles.team, backgroundColor: secondaryColor },
-    finalCta: { ...styles.finalCta, backgroundColor: secondaryColor },
     footer: { ...styles.footer, backgroundColor: secondaryColor },
-    cutsGallery: { ...styles.cutsGallery, backgroundColor: secondaryColor },
   };
 
   return (
@@ -114,10 +168,8 @@ export default function LandingPage() {
       <header style={dynamicStyles.header}>
         <div style={styles.headerLeft}>
           {settings.logo_url ? (
-            // Se houver logo, exibe a imagem
-            <img src={settings.logo_url} alt="Logo" style={styles.logoImage} />
+            <img src={settings.logo_url} alt="Logo" style={{...styles.logoImage, height: isMobile ? '30px' : '40px'}} />
           ) : (
-            // Se não houver logo, exibe o nome da barbearia em texto elegante
             <div style={dynamicStyles.logoText}>
               {settings.name || 'BarberSaaS'}
             </div>
@@ -129,14 +181,14 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section style={dynamicStyles.hero}>
         <div style={styles.heroContent}>
-          <h1 style={styles.heroTitle}>
+          <h1 style={dynamicStyles.heroTitle}>
             CORTE  
             <span style={dynamicStyles.heroTitleRed}> PERFEITO</span>
           </h1>
-          <p style={styles.heroSubtitle}>
+          <p style={dynamicStyles.heroSubtitle}>
             {settings.description || 'A maior rede de barbearia do Brasil. Qualidade, preço justo e experiência premium em cada corte.'}
           </p>
-          <div style={styles.heroButtons}>
+          <div style={dynamicStyles.heroButtons}>
             <button style={dynamicStyles.buttonPrimary} onClick={handleAgendar}>
               Agendar Agora →
             </button>
@@ -145,26 +197,27 @@ export default function LandingPage() {
             </button>
           </div>
         </div>
-        <div style={styles.heroImage}>
+        <div style={{...styles.heroImage, marginTop: isMobile ? '40px' : '0'}}>
           {settings.banner_url ? (
             <img src={settings.banner_url} alt="Banner" style={styles.heroImageActual} />
           ) : (
-            <div style={styles.heroImagePlaceholder}>👨‍💼</div>
+            <div style={{...styles.heroImagePlaceholder, height: isMobile ? '300px' : '400px', backgroundColor: '#111'}}></div>
           )}
         </div>
       </section>
 
-      {/* Services Section - AGORA DINÂMICA COM O ADM */}
+      {/* Services Section */}
       <section id="services" style={dynamicStyles.services}>
         <h2 style={dynamicStyles.sectionTitle}>NOSSOS SERVIÇOS</h2>
-        <div style={styles.servicesGrid}>
+        <div style={{...styles.servicesGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))'}}>
           {services.length > 0 ? (
             services.map((service, index) => (
               <div 
                 key={service.id} 
                 style={{ 
                   ...styles.serviceCard, 
-                  ...(index === 2 ? dynamicStyles.serviceCardHighlight : {}) // Destaque no terceiro item (exemplo)
+                  padding: isMobile ? '30px 20px' : '40px',
+                  ...(index === 2 ? dynamicStyles.serviceCardHighlight : {})
                 }}
               >
                 <div style={styles.serviceIcon}>{service.emoji || '✂️'}</div>
@@ -176,7 +229,6 @@ export default function LandingPage() {
               </div>
             ))
           ) : (
-            // Fallback caso não existam serviços cadastrados
             <div style={styles.serviceCard}>
               <p style={styles.serviceDesc}>Nenhum serviço cadastrado no painel ADM.</p>
             </div>
@@ -189,9 +241,9 @@ export default function LandingPage() {
         <section style={dynamicStyles.cutsGallery}>
           <h2 style={dynamicStyles.sectionTitle}>NOSSOS CORTES</h2>
           <p style={styles.cutsSubtitle}>Confira os melhores trabalhos da nossa equipe</p>
-          <div style={styles.cutsGrid}>
+          <div style={{...styles.cutsGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(250px, 1fr))'}}>
             {gallery.map((photo) => (
-              <div key={photo.id} style={styles.cutsItem}>
+              <div key={photo.id} style={{...styles.cutsItem, height: isMobile ? '250px' : '300px'}}>
                 <img src={photo.image_url} alt={photo.title || 'Corte'} style={styles.cutsImage} />
                 {photo.title && <div style={styles.cutsTitle}>{photo.title}</div>}
               </div>
@@ -204,19 +256,17 @@ export default function LandingPage() {
       {barbers.length > 0 && (
         <section style={dynamicStyles.team}>
           <h2 style={dynamicStyles.sectionTitle}>NOSSA EQUIPE</h2>
-          <p style={styles.teamSubtitle}>Profissionais experientes e dedicados ao seu estilo</p>
-          <div style={styles.teamMembers}>
+          <p style={{...styles.teamSubtitle, marginBottom: isMobile ? '40px' : '60px'}}>Profissionais experientes e dedicados ao seu estilo</p>
+          <div style={{...styles.teamMembers, gap: isMobile ? '30px' : '40px'}}>
             {barbers.map((barber) => (
-              <div key={barber.id} style={styles.teamMember}>
-                <div style={styles.teamPhoto}>
-                  {/* CORREÇÃO: Garantindo que o campo photo_url seja usado corretamente */}
+              <div key={barber.id} style={{...styles.teamMember, width: isMobile ? '100%' : '280px'}}>
+                <div style={{...styles.teamPhoto, width: isMobile ? '150px' : '200px', height: isMobile ? '150px' : '200px'}}>
                   {barber.photo_url ? (
                     <img 
                       src={barber.photo_url} 
                       alt={barber.name} 
                       style={styles.teamPhotoImage} 
                       onError={(e) => {
-                        // Fallback caso a imagem falhe ao carregar
                         e.target.style.display = 'none';
                         e.target.nextSibling.style.display = 'flex';
                       }}
@@ -224,8 +274,9 @@ export default function LandingPage() {
                   ) : null}
                   <div style={{
                     ...styles.teamPhotoPlaceholder,
-                    display: barber.photo_url ? 'none' : 'flex'
-                  }}>👨‍💼</div>
+                    display: barber.photo_url ? 'none' : 'flex',
+                    backgroundColor: '#1a1a1a'
+                  }}></div>
                 </div>
                 <h3 style={styles.teamName}>{barber.name}</h3>
                 <p style={dynamicStyles.teamRole}>Barbeiro Profissional</p>
@@ -238,24 +289,24 @@ export default function LandingPage() {
 
       {/* Final CTA Section */}
       <section style={dynamicStyles.finalCta}>
-        <h2 style={styles.ctaTitle}>
+        <h2 style={dynamicStyles.ctaTitle}>
           PRONTO PARA SEU  
           <span style={dynamicStyles.ctaTitleRed}> MELHOR CORTE?</span>
         </h2>
-        <p style={styles.ctaSubtitle}>
+        <p style={dynamicStyles.ctaSubtitle}>
           Agende agora mesmo e experimente a qualidade premium. Estamos abertos de segunda a sábado, das {settings.opening_time || '9h'} às {settings.closing_time || '21h'}
         </p>
-        <div style={styles.ctaButtons}>
-          <button style={dynamicStyles.ctaButtonPrimary} onClick={handleAgendar}>
+        <div style={{...styles.ctaButtons, gap: isMobile ? '15px' : '20px', marginBottom: isMobile ? '40px' : '60px'}}>
+          <button style={{...dynamicStyles.ctaButtonPrimary, width: isMobile ? '100%' : 'auto', padding: isMobile ? '15px 20px' : '18px 40px'}} onClick={handleAgendar}>
             Agendar Agora →
           </button>
-          <button style={dynamicStyles.ctaButtonSecondary} onClick={handleInstagram}>
+          <button style={{...dynamicStyles.ctaButtonSecondary, width: isMobile ? '100%' : 'auto', padding: isMobile ? '15px 20px' : '18px 40px'}} onClick={handleInstagram}>
             Seguir no Instagram
           </button>
         </div>
 
         {/* Contact Info */}
-        <div style={styles.contactInfo}>
+        <div style={{...styles.contactInfo, gap: isMobile ? '30px' : '60px', flexDirection: isMobile ? 'column' : 'row'}}>
           <div style={styles.contactCard}>
             <div style={styles.contactIcon}>📍</div>
             <div style={styles.contactLabel}>Localização</div>
@@ -299,12 +350,12 @@ const styles = {
   container: {
     color: '#fff',
     fontFamily: 'Arial, sans-serif',
+    overflowX: 'hidden',
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '20px 40px',
     position: 'fixed',
     top: 0,
     left: 0,
@@ -323,7 +374,6 @@ const styles = {
     letterSpacing: '2px',
   },
   logoText: {
-    fontSize: '24px',
     fontWeight: 'bold',
     letterSpacing: '2px',
     textTransform: 'uppercase',
@@ -331,7 +381,6 @@ const styles = {
     transition: 'all 0.3s ease',
   },
   logoImage: {
-    height: '40px',
     width: 'auto',
     objectFit: 'contain',
   },
@@ -339,7 +388,6 @@ const styles = {
     width: '40px',
   },
   hero: {
-    padding: '160px 40px 100px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -351,7 +399,6 @@ const styles = {
     minWidth: '300px',
   },
   heroTitle: {
-    fontSize: '64px',
     fontWeight: 'bold',
     marginBottom: '20px',
     lineHeight: '1.1',
@@ -360,9 +407,7 @@ const styles = {
     color: '#E50914',
   },
   heroSubtitle: {
-    fontSize: '18px',
     color: '#aaa',
-    marginBottom: '40px',
     maxWidth: '500px',
     lineHeight: '1.6',
   },
@@ -405,32 +450,24 @@ const styles = {
   heroImagePlaceholder: {
     width: '100%',
     maxWidth: '500px',
-    height: '400px',
-    backgroundColor: '#111',
     borderRadius: '20px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '100px',
   },
   services: {
-    padding: '100px 40px',
     textAlign: 'center',
   },
   sectionTitle: {
-    fontSize: '40px',
     fontWeight: 'bold',
-    marginBottom: '60px',
     letterSpacing: '2px',
   },
   servicesGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
     gap: '30px',
   },
   serviceCard: {
     backgroundColor: '#111',
-    padding: '40px',
     borderRadius: '15px',
     border: '1px solid #222',
     transition: 'all 0.3s',
@@ -460,7 +497,6 @@ const styles = {
     color: '#E50914',
   },
   cutsGallery: {
-    padding: '100px 40px',
     textAlign: 'center',
     backgroundColor: '#050505',
   },
@@ -470,14 +506,12 @@ const styles = {
   },
   cutsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
     gap: '20px',
   },
   cutsItem: {
     position: 'relative',
     borderRadius: '10px',
     overflow: 'hidden',
-    height: '300px',
   },
   cutsImage: {
     width: '100%',
@@ -496,30 +530,23 @@ const styles = {
     fontWeight: 'bold',
   },
   team: {
-    padding: '100px 40px',
     textAlign: 'center',
   },
   teamSubtitle: {
     color: '#aaa',
-    marginBottom: '60px',
   },
   teamMembers: {
     display: 'flex',
     justifyContent: 'center',
-    gap: '40px',
     flexWrap: 'wrap',
   },
   teamMember: {
-    width: '280px',
     textAlign: 'center',
   },
   teamPhoto: {
-    width: '200px',
-    height: '200px',
     borderRadius: '50%',
     overflow: 'hidden',
     margin: '0 auto 20px',
-    backgroundColor: '#1a1a1a',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -531,7 +558,6 @@ const styles = {
     objectFit: 'cover',
   },
   teamPhotoPlaceholder: {
-    fontSize: '80px',
     width: '100%',
     height: '100%',
     display: 'flex',
@@ -555,13 +581,10 @@ const styles = {
     lineHeight: '1.5',
   },
   finalCta: {
-    padding: '100px 40px',
-    backgroundColor: '#000',
     textAlign: 'center',
     borderTop: '1px solid #222',
   },
   ctaTitle: {
-    fontSize: '48px',
     fontWeight: 'bold',
     marginBottom: '20px',
   },
@@ -569,7 +592,6 @@ const styles = {
     color: '#E50914',
   },
   ctaSubtitle: {
-    fontSize: '18px',
     color: '#aaa',
     maxWidth: '800px',
     margin: '0 auto 40px',
@@ -578,15 +600,12 @@ const styles = {
   ctaButtons: {
     display: 'flex',
     justifyContent: 'center',
-    gap: '20px',
     flexWrap: 'wrap',
-    marginBottom: '60px',
   },
   ctaButtonPrimary: {
     backgroundColor: '#E50914',
     color: '#fff',
     border: 'none',
-    padding: '18px 40px',
     borderRadius: '8px',
     fontSize: '18px',
     fontWeight: 'bold',
@@ -597,7 +616,6 @@ const styles = {
     backgroundColor: 'transparent',
     color: '#E50914',
     border: '2px solid #E50914',
-    padding: '18px 40px',
     borderRadius: '8px',
     fontSize: '18px',
     fontWeight: 'bold',
@@ -607,7 +625,6 @@ const styles = {
   contactInfo: {
     display: 'flex',
     justifyContent: 'center',
-    gap: '60px',
     flexWrap: 'wrap',
   },
   contactCard: {
