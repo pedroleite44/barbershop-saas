@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from 'react';
 
@@ -16,6 +16,7 @@ export default function AgendarPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [tenantSettings, setTenantSettings] = useState(null);
 
   const [theme, setTheme] = useState({
     primary: "#E50914",
@@ -50,12 +51,14 @@ export default function AgendarPage() {
         
         if (settingsData && settingsData.data) {
           const settings = settingsData.data || settingsData;
+          setTenantSettings(settings);
           setTheme({
             primary: settings.primary_color || "#E50914",
             secondary: settings.secondary_color || "#0A0A0A",
             accent: settings.accent_color || "#ffffff"
           });
         } else if (settingsData) {
+          setTenantSettings(settingsData);
           setTheme({
             primary: settingsData.primary_color || "#E50914",
             secondary: settingsData.secondary_color || "#0A0A0A",
@@ -104,6 +107,28 @@ export default function AgendarPage() {
     );
   }
 
+  // Função para formatar a mensagem do WhatsApp
+  function formatWhatsAppMessage() {
+    const selectedBarberName = barbers.find(b => b.id == barberId)?.name || "Barbeiro";
+    const servicesList = selectedServices.map(id => {
+      const s = services.find(serv => serv.id === id);
+      return s ? `• ${s.name} (R$ ${parseFloat(s.price).toFixed(2)})` : "";
+    }).join("\n");
+
+    const [year, month, day] = selectedDate.split('-');
+    const formattedDate = `${day}/${month}/${year}`;
+
+    return `🚨 *NOVO AGENDAMENTO* 🚨\n\n` +
+           `👤 *Cliente:* ${clientName}\n` +
+           `📞 *Telefone:* ${clientPhone}\n\n` +
+           `✂️ *Serviços:*\n${servicesList}\n\n` +
+           `🧔 *Barbeiro:* ${selectedBarberName}\n` +
+           `📅 *Data:* ${formattedDate}\n` +
+           `⏰ *Hora:* ${selectedTime}\n` +
+           `💰 *Total:* R$ ${totalPrice.toFixed(2)}\n\n` +
+           `_Por favor, confirme se o horário está disponível!_`;
+  }
+
   async function handleBookAppointment() {
     if (!clientName || !clientPhone) {
       setMessage('❌ Por favor, preencha nome e telefone');
@@ -125,39 +150,61 @@ export default function AgendarPage() {
       return;
     }
 
-    const res = await fetch('/api/public/book-appointment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tenantId: Number(tenantId),
-        barberId: Number(barberId),
-        serviceIds: selectedServices.map(id => Number(id)),
-        totalPrice: parseFloat(totalPrice),
-        clientName,
-        clientPhone,
-        appointmentDate: selectedDate,
-        appointmentTime: selectedTime,
-      }),
-    });
+    setLoading(true);
+    try {
+      const res = await fetch('/api/public/book-appointment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId: Number(tenantId),
+          barberId: Number(barberId),
+          serviceIds: selectedServices.map(id => Number(id)),
+          totalPrice: parseFloat(totalPrice),
+          clientName,
+          clientPhone,
+          appointmentDate: selectedDate,
+          appointmentTime: selectedTime,
+        }),
+      });
 
-    if (res.ok) {
-      const result = await res.json();
-      if (result.success) {
-        setMessage("✅ Agendado com sucesso!");
-        setTimeout(() => {
-          setClientName('');
-          setClientPhone('');
-          setSelectedTime('');
-          setSelectedDate('');
-          setBarberId('');
-          setSelectedServices([]);
-          setMessage('');
-        }, 2000);
+      if (res.ok) {
+        const result = await res.json();
+        if (result.success) {
+          setMessage("✅ Agendado com sucesso! Redirecionando para o WhatsApp...");
+          
+          // Lógica de Redirecionamento WhatsApp
+          const whatsappMessage = formatWhatsAppMessage();
+          const encodedMessage = encodeURIComponent(whatsappMessage);
+          const rawPhone = tenantSettings?.phone || "";
+          const cleanPhone = rawPhone.replace(/\D/g, "");
+          const finalPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+
+          setTimeout(() => {
+            if (finalPhone.length > 5) {
+              window.open(`https://wa.me/${finalPhone}?text=${encodedMessage}`, '_blank' );
+            } else {
+              console.warn("Telefone da barbearia não configurado corretamente.");
+            }
+            
+            // Limpar campos
+            setClientName('');
+            setClientPhone('');
+            setSelectedTime('');
+            setSelectedDate('');
+            setBarberId('');
+            setSelectedServices([]);
+            setMessage('');
+          }, 2000);
+        } else {
+          setMessage(`❌ Erro: ${result.error}`);
+        }
       } else {
-        setMessage(`❌ Erro: ${result.error}`);
+        setMessage('❌ Erro ao agendar');
       }
-    } else {
-      setMessage('❌ Erro ao agendar');
+    } catch (err) {
+      setMessage('❌ Erro de conexão');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -183,7 +230,7 @@ export default function AgendarPage() {
   for (let i = 0; i < firstDay; i++) days.push(null);
   for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
-  if (loading) {
+  if (loading && !tenantSettings) {
     return (
       <div style={{...styles.container, background: theme.secondary, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
         <div style={{color: theme.primary, fontSize: 18}}>Carregando...</div>
@@ -232,7 +279,6 @@ export default function AgendarPage() {
             )}
           </div>
 
-          {/* Exibir soma dos preços */}
           {selectedServices.length > 0 && (
             <div style={{...styles.priceBox, borderColor: theme.primary, backgroundColor: `${theme.primary}15`, padding: isMobile ? '12px' : '15px'}}>
               <div style={{fontSize: isMobile ? '11px' : '12px', color: '#aaa', marginBottom: 5}}>Total dos Serviços:</div>
@@ -286,7 +332,7 @@ export default function AgendarPage() {
         {/* CALENDÁRIO */}
         {barberId && selectedServices.length > 0 && (
           <>
-            <div style={{...styles.calendarHeader, gap: isMobile ? '8px' : '20px'}}>
+            <div style={styles.calendarHeader}>
               <button onClick={()=>setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1))} style={{...styles.navButton, backgroundColor: theme.primary, color: theme.secondary, padding: isMobile ? '8px 12px' : '10px 15px', fontSize: isMobile ? '14px' : '16px'}}>←</button>
 
               <h3 style={{...styles.monthName, color: theme.primary, fontSize: isMobile ? '14px' : '16px'}}>
@@ -299,8 +345,8 @@ export default function AgendarPage() {
             <div style={{...styles.calendar, gap: isMobile ? '3px' : '5px'}}>
               {days.map((day,i)=>{
                 const dateStr = day ? formatDate(day) : '';
-                const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-                const isPast = dateObj < today;
+                const dateObj = day ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day) : null;
+                const isPast = dateObj && dateObj < today;
 
                 return (
                   <button
@@ -372,15 +418,19 @@ export default function AgendarPage() {
               </div>
 
               <div style={{fontSize: isMobile ? '11px' : '12px', color: '#fff'}}>
-                {barbers.find(b => b.id == barberId)?.name} • {selectedDate} às {selectedTime}
+                {barbers.find(b => b.id == barberId)?.name} • {selectedDate.split('-').reverse().join('/')} às {selectedTime}
               </div>
             </div>
 
             <input placeholder="Nome" value={clientName} onChange={e=>setClientName(e.target.value)} style={{...styles.input, borderColor: '#333', padding: isMobile ? '10px' : '12px', fontSize: isMobile ? '14px' : '16px'}}/>
             <input placeholder="Telefone" value={clientPhone} onChange={e=>setClientPhone(e.target.value)} style={{...styles.input, borderColor: '#333', padding: isMobile ? '10px' : '12px', fontSize: isMobile ? '14px' : '16px'}}/>
 
-            <button style={{...styles.button, background: theme.primary, color: theme.secondary, padding: isMobile ? '10px' : '12px', fontSize: isMobile ? '14px' : '16px'}} onClick={handleBookAppointment}>
-              Confirmar Agendamento
+            <button 
+              style={{...styles.button, background: theme.primary, color: theme.secondary, padding: isMobile ? '10px' : '12px', fontSize: isMobile ? '14px' : '16px', opacity: loading ? 0.7 : 1}} 
+              onClick={handleBookAppointment}
+              disabled={loading}
+            >
+              {loading ? "Processando..." : "Confirmar e Enviar via WhatsApp"}
             </button>
           </>
         )}

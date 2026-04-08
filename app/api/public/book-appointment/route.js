@@ -5,9 +5,6 @@ export async function POST(request) {
     await initDatabase();
     const body = await request.json();
     
-    console.log("--- 📅 RECEBENDO AGENDAMENTO ---");
-
-    // Garantir que os IDs sejam números puros
     const tenantId = Number(body.tenantId || body.tenant_id || 1);
     const barberId = Number(body.barberId || body.barber_id);
     const clientName = body.clientName || body.client_name || "Cliente";
@@ -21,18 +18,15 @@ export async function POST(request) {
       return Response.json({ success: false, error: "Dados incompletos" }, { status: 400 });
     }
 
-    // Busca de nomes de serviços
     let serviceNames = "Serviço não especificado";
     if (serviceIds.length > 0) {
       const ids = serviceIds.map(id => Number(id));
       const services = await sql`SELECT name FROM services WHERE id = ANY(${ids})`;
-      serviceNames = services.map(s => s.name).join(', ');
+      serviceNames = services.map(s => s.name).join(", ");
     }
 
-    // Salvar IDs como texto simples "1,2,3"
-    const serviceIdsString = Array.isArray(serviceIds) ? serviceIds.join(',') : String(serviceIds);
+    const serviceIdsString = Array.isArray(serviceIds) ? serviceIds.join(",") : String(serviceIds);
 
-    // INSERÇÃO DIRETA E SIMPLES
     const result = await sql`
       INSERT INTO appointments (
         tenant_id, barber_id, date, time, phone, client_name, 

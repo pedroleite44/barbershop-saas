@@ -12,6 +12,7 @@ export default function AdminDashboard() {
   const [barbers, setBarbers] = useState([]);
   const [services, setServices] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [revenueStats, setRevenueStats] = useState({ today: 0, thisWeek: 0, thisMonth: 0 });
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(false);
   
@@ -82,6 +83,7 @@ export default function AdminDashboard() {
     fetchBarbers();
     fetchAppointments();
     fetchSettings();
+    fetchRevenueStats();
   }, []);
 
   async function fetchServices() {
@@ -117,6 +119,18 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Erro ao buscar agendamentos:', error);
       showNotification('Erro ao buscar agendamentos', 'error');
+    }
+  }
+
+  async function fetchRevenueStats() {
+    try {
+      const tenantId = localStorage.getItem('tenant_id');
+      const data = await apiCall(`/api/admin/revenue-stats?tenant_id=${tenantId}`);
+      if (data.success) {
+        setRevenueStats(data.data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar faturamento:', error);
     }
   }
 
@@ -242,7 +256,6 @@ export default function AdminDashboard() {
 
       const data = await response.json();
       
-      // CORREÇÃO ROBUSTA: Pega a URL independente do nome do campo (url ou image_url)
       const fileUrl = data.url || data.image_url;
 
       if (!fileUrl) {
@@ -323,15 +336,13 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Erro ao salvar:', error);
-      showNotification('Erro ao salvar configurações', 'error');
+      showNotification('Erro ao salvar', 'error');
     }
   }
 
   async function handleLogout() {
     try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
+      await fetch('/api/auth/logout', { method: 'POST' });
       localStorage.clear();
       router.push('/login');
     } catch (error) {
@@ -352,36 +363,96 @@ export default function AdminDashboard() {
       </div>
 
       {notification.visible && (
-        <div style={{
-          ...styles.notification,
-          backgroundColor: notification.type === 'success' ? '#4CAF50' : '#f44336'
-        }}>
+        <div
+          style={{
+            ...styles.notification,
+            backgroundColor: notification.type === 'success' ? '#4CAF50' : '#f44336'
+          }}
+        >
           {notification.message}
         </div>
       )}
 
       <div style={styles.main}>
         <div style={styles.sidebar}>
-          {['dashboard', 'barbers', 'services', 'appointments', 'settings'].map((tab) => (
-            <div
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                ...styles.sidebarItem,
-                backgroundColor: activeTab === tab ? '#1a1a1a' : 'transparent',
-                borderLeftColor: activeTab === tab ? '#E50914' : 'transparent',
-                color: activeTab === tab ? '#E50914' : '#aaa',
-              }}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </div>
-          ))}
+          <div
+            onClick={() => setActiveTab('dashboard')}
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'dashboard' ? '#E50914' : 'transparent',
+              backgroundColor: activeTab === 'dashboard' ? '#1a1a1a' : 'transparent',
+              color: activeTab === 'dashboard' ? '#fff' : '#aaa'
+            }}
+          >
+            Dashboard
+          </div>
+          <div
+            onClick={() => setActiveTab('barbers')}
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'barbers' ? '#E50914' : 'transparent',
+              backgroundColor: activeTab === 'barbers' ? '#1a1a1a' : 'transparent',
+              color: activeTab === 'barbers' ? '#fff' : '#aaa'
+            }}
+          >
+            Barbeiros
+          </div>
+          <div
+            onClick={() => setActiveTab('services')}
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'services' ? '#E50914' : 'transparent',
+              backgroundColor: activeTab === 'services' ? '#1a1a1a' : 'transparent',
+              color: activeTab === 'services' ? '#fff' : '#aaa'
+            }}
+          >
+            Serviços
+          </div>
+          <div
+            onClick={() => setActiveTab('appointments')}
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'appointments' ? '#E50914' : 'transparent',
+              backgroundColor: activeTab === 'appointments' ? '#1a1a1a' : 'transparent',
+              color: activeTab === 'appointments' ? '#fff' : '#aaa'
+            }}
+          >
+            Agendamentos
+          </div>
+          <div
+            onClick={() => setActiveTab('settings')}
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'settings' ? '#E50914' : 'transparent',
+              backgroundColor: activeTab === 'settings' ? '#1a1a1a' : 'transparent',
+              color: activeTab === 'settings' ? '#fff' : '#aaa'
+            }}
+          >
+            Configurações
+          </div>
         </div>
 
         <div style={styles.content}>
           {activeTab === 'dashboard' && (
             <div>
               <h2 style={styles.sectionTitle}>Dashboard</h2>
+              
+              {/* NOVOS CARDS DE FATURAMENTO */}
+              <div style={styles.revenueGrid}>
+                <div style={{...styles.revenueCard, borderLeftColor: '#4CAF50'}}>
+                  <div style={styles.statLabel}>Expectativa Hoje</div>
+                  <div style={{...styles.statValue, color: '#4CAF50'}}>R$ {revenueStats.today.toFixed(2)}</div>
+                </div>
+                <div style={{...styles.revenueCard, borderLeftColor: '#2196F3'}}>
+                  <div style={styles.statLabel}>Expectativa Semana</div>
+                  <div style={{...styles.statValue, color: '#2196F3'}}>R$ {revenueStats.thisWeek.toFixed(2)}</div>
+                </div>
+                <div style={{...styles.revenueCard, borderLeftColor: '#FF9800'}}>
+                  <div style={styles.statLabel}>Expectativa Mês</div>
+                  <div style={{...styles.statValue, color: '#FF9800'}}>R$ {revenueStats.thisMonth.toFixed(2)}</div>
+                </div>
+              </div>
+
               <div style={styles.statsGrid}>
                 <div style={styles.statCard}>
                   <div style={styles.statLabel}>Total de Barbeiros</div>
@@ -435,13 +506,15 @@ export default function AdminDashboard() {
                     type="number"
                     placeholder="Percentual de Comissão (%)"
                     value={barberForm.commission_percentage}
-                    onChange={(e) => setBarberForm({ ...barberForm, commission_percentage: parseFloat(e.target.value) })}
+                    onChange={(e) =>
+                      setBarberForm({ ...barberForm, commission_percentage: parseFloat(e.target.value) })
+                    }
                     style={styles.input}
                   />
 
                   <div style={styles.uploadSection}>
                     <div style={styles.uploadBox}>
-                      <label style={styles.uploadLabel}>📷 Foto do Barbeiro</label>
+                      <label style={styles.uploadLabel}>Foto do Barbeiro</label>
                       <input
                         type="file"
                         accept="image/*"
@@ -451,11 +524,7 @@ export default function AdminDashboard() {
                       />
                       {barberForm.photo_url && (
                         <div style={styles.photoPreviewContainer}>
-                          <img 
-                            src={barberForm.photo_url} 
-                            alt="Foto do Barbeiro" 
-                            style={styles.photoPreview}
-                          />
+                          <img src={barberForm.photo_url} alt="Barbeiro" style={styles.photoPreview} />
                           <button
                             type="button"
                             onClick={() => setBarberForm({ ...barberForm, photo_url: '' })}
@@ -490,9 +559,25 @@ export default function AdminDashboard() {
                       <div key={barber.id} style={styles.tableRow}>
                         <div style={styles.tableCell}>
                           {barber.photo_url ? (
-                            <img src={barber.photo_url} alt={barber.name} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+                            <img
+                              src={barber.photo_url}
+                              alt={barber.name}
+                              style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
+                            />
                           ) : (
-                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#222', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>👨‍💼</div>
+                            <div
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                backgroundColor: '#222',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              👨‍💼
+                            </div>
                           )}
                         </div>
                         <div style={styles.tableCell}>{barber.name}</div>
@@ -926,6 +1011,8 @@ const styles = {
   sidebarItem: { padding: '15px 20px', cursor: 'pointer', borderLeft: '3px solid transparent', color: '#aaa', fontSize: '14px', transition: 'all 0.3s' },
   content: { flex: 1, padding: '30px', overflowY: 'auto' },
   sectionTitle: { fontSize: '24px', fontWeight: 'bold', color: '#E50914', marginBottom: '20px' },
+  revenueGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' },
+  revenueCard: { backgroundColor: '#111', padding: '20px', borderRadius: '8px', borderLeft: '4px solid' },
   addBtn: { backgroundColor: '#E50914', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginBottom: '20px' },
   form: { backgroundColor: '#111', border: '1px solid #222', borderRadius: '8px', padding: '20px', marginBottom: '20px' },
   input: { width: '100%', padding: '10px', marginBottom: '10px', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' },
