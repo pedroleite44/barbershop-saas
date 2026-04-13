@@ -1,17 +1,14 @@
-import './globals.css'
-import { Inter } from 'next/font/google'
-
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata = {
-  title: 'Sistema de Barbearia SaaS',
-  description: 'Agendamento online para barbearias',
-}
+import { Providers } from "@/components/Providers"; // Importe o componente
 
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className}>{children}</body>
+      <body>
+        {/* Envolva o conteúdo com o Providers */}
+        <Providers>
+          {children}
+        </Providers>
+      </body>
     </html>
-  )
+  );
 }
