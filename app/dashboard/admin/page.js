@@ -20,8 +20,9 @@ export default function AdminDashboard() {
   const [notification, setNotification] = useState({ message: '', type: '', visible: false });
   
   const [showBarberForm, setShowBarberForm] = useState(false);
+  const [isEditingBarber, setIsEditingBarber] = useState(false); // ✅ ADICIONADO
   const [showServiceForm, setShowServiceForm] = useState(false);
-  const [barberForm, setBarberForm] = useState({ name: '', phone: '', specialty: '', photo_url: '', commission_percentage: 0 });
+  const [barberForm, setBarberForm] = useState({ id: null, name: '', phone: '', email: '', password: '', specialty: '', photo_url: '', commission_percentage: 0 }); // ✅ ATUALIZADO
   const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: 0, duration: 0 });
   
   const [isEditingSettings, setIsEditingSettings] = useState(false);
@@ -40,17 +41,18 @@ export default function AdminDashboard() {
     try {
       const token = localStorage.getItem('token');
       
-      if (!token) {
-        throw new Error('Token não encontrado. Faça login novamente.');
+      const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      };
+
+      if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
       }
 
       const response = await fetch(url, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token,
-          ...options.headers,
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -59,7 +61,14 @@ export default function AdminDashboard() {
           window.location.href = '/login';
           throw new Error('Sessão expirada. Faça login novamente.');
         }
-        throw new Error('Erro ' + response.status + ': ' + response.statusText);
+        
+        let errorMessage = `Erro ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) errorMessage = errorData.error;
+        } catch (e) {}
+        
+        throw new Error(errorMessage);
       }
 
       return await response.json();
@@ -91,7 +100,7 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
 
-      const tenantId = localStorage.getItem('tenant_id');
+      const tenantId = localStorage.getItem('tenant_id') || 1;
       const data = await apiCall(`/api/services?tenant_id=${tenantId}`);
 
       setServices(data.data || []);
@@ -105,8 +114,9 @@ export default function AdminDashboard() {
 
   async function fetchBarbers() {
     try {
-      const tenantId = localStorage.getItem('tenant_id');
-      const data = await apiCall(`/api/public/barbers?tenant_id=${tenantId}`);
+      const tenantId = localStorage.getItem('tenant_id') || 1;
+      // ✅ ATUALIZADO: Agora a rota /api/barbers retorna e-mails
+      const data = await apiCall(`/api/barbers?tenant_id=${tenantId}`);
       setBarbers(data.data || []);
     } catch (error) {
       console.error('Erro ao buscar barbeiros:', error);
@@ -116,7 +126,7 @@ export default function AdminDashboard() {
 
   async function fetchAppointments() {
     try {
-      const tenantId = localStorage.getItem('tenant_id');
+      const tenantId = localStorage.getItem('tenant_id') || 1;
       const data = await apiCall(`/api/appointments?tenant_id=${tenantId}`);
       setAppointments(data.data || []);
     } catch (error) {
@@ -127,7 +137,7 @@ export default function AdminDashboard() {
 
   async function fetchRevenueStats() {
     try {
-      const tenantId = localStorage.getItem('tenant_id');
+      const tenantId = localStorage.getItem('tenant_id') || 1;
       const data = await apiCall(`/api/admin/revenue-stats?tenant_id=${tenantId}`);
       if (data.success) {
         setRevenueStats(data.data);
@@ -139,7 +149,7 @@ export default function AdminDashboard() {
 
   async function fetchSettings() {
     try {
-      const tenantId = localStorage.getItem('tenant_id');
+      const tenantId = localStorage.getItem('tenant_id') || 1;
       const data = await apiCall('/api/public/settings?tenant_id=' + tenantId);
       if (data.success) {
         setSettings(data.data || {});
@@ -171,32 +181,65 @@ export default function AdminDashboard() {
 
   async function handleCreateBarber(e) {
     e.preventDefault();
-    if (!barberForm.name || !barberForm.phone) {
-      showNotification('Preencha todos os campos', 'error');
+    // ✅ ATUALIZADO: Senha opcional na edição
+    if (!barberForm.name || !barberForm.phone || !barberForm.email || (!isEditingBarber && !barberForm.password)) {
+      showNotification('Preencha todos os campos obrigatórios', 'error');
+      return;
+    }
+    if (!isEditingBarber && barberForm.password.length < 6) {
+      showNotification('A senha deve ter no mínimo 6 caracteres', 'error');
       return;
     }
 
     try {
       setLoading(true);
-      const tenantId = localStorage.getItem('tenant_id');
-      await apiCall('/api/barbers', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...barberForm,
-          tenant_id: tenantId
-        }),
-      });
+      const tenantId = localStorage.getItem('tenant_id') || 1;
+      
+      if (isEditingBarber) {
+        // ✅ NOVO: Chamada para atualização
+        await apiCall('/api/barbers', {
+          method: 'PUT',
+          body: JSON.stringify(barberForm),
+        });
+        showNotification('Barbeiro atualizado com sucesso!', 'success');
+      } else {
+        await apiCall('/api/barbers', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...barberForm,
+            tenant_id: tenantId
+          }),
+        });
+        showNotification('Barbeiro criado com sucesso!', 'success');
+      }
 
-      showNotification('Barbeiro criado com sucesso!', 'success');
-      setBarberForm({ name: '', phone: '', specialty: '', photo_url: '', commission_percentage: 0 });
+      setBarberForm({ id: null, name: '', phone: '', email: '', password: '', specialty: '', photo_url: '', commission_percentage: 0 });
       setShowBarberForm(false);
+      setIsEditingBarber(false);
       fetchBarbers();
     } catch (error) {
       console.error('Erro:', error);
-      showNotification(error.message || 'Erro ao criar barbeiro', 'error');
+      showNotification(error.message || 'Erro ao salvar barbeiro', 'error');
     } finally {
       setLoading(false);
     }
+  }
+
+  // ✅ NOVO: Função para carregar edição
+  function handleEditBarber(barber) {
+    setBarberForm({
+      id: barber.id,
+      name: barber.name,
+      phone: barber.phone,
+      email: barber.email, 
+      password: '', 
+      specialty: barber.specialty,
+      photo_url: barber.photo_url,
+      commission_percentage: barber.commission_percentage
+    });
+    setIsEditingBarber(true);
+    setShowBarberForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function handleCreateService(e) {
@@ -208,7 +251,7 @@ export default function AdminDashboard() {
 
     try {
       setLoading(true);
-      const tenantId = localStorage.getItem('tenant_id');
+      const tenantId = localStorage.getItem('tenant_id') || 1;
 
       await apiCall('/api/services', {
         method: 'POST',
@@ -329,7 +372,7 @@ export default function AdminDashboard() {
 
     try {
       const token = localStorage.getItem('token');
-      const tenantId = localStorage.getItem('tenant_id');
+      const tenantId = localStorage.getItem('tenant_id') || 1;
       
       if (!token || !tenantId) {
         showNotification('Token ou Tenant ID não encontrado', 'error');
@@ -533,12 +576,19 @@ export default function AdminDashboard() {
           {activeTab === 'barbers' && (
             <div>
               <h2 style={styles.sectionTitle}>Gerenciar Barbeiros</h2>
-              <button onClick={() => setShowBarberForm(!showBarberForm)} style={styles.addBtn}>
+              <button onClick={() => {
+                setShowBarberForm(!showBarberForm);
+                if (!showBarberForm) {
+                  setIsEditingBarber(false);
+                  setBarberForm({ id: null, name: '', phone: '', email: '', password: '', specialty: '', photo_url: '', commission_percentage: 0 });
+                }
+              }} style={styles.addBtn}>
                 {showBarberForm ? 'Cancelar' : '+ Adicionar Barbeiro'}
               </button>
 
               {showBarberForm && (
                 <form onSubmit={handleCreateBarber} style={styles.form}>
+                  <h3 style={{color: '#E50914', marginBottom: '15px'}}>{isEditingBarber ? 'Editar Barbeiro' : 'Novo Barbeiro'}</h3>
                   <input
                     type="text"
                     placeholder="Nome do Barbeiro"
@@ -554,6 +604,22 @@ export default function AdminDashboard() {
                     onChange={(e) => setBarberForm({ ...barberForm, phone: e.target.value })}
                     style={styles.input}
                     required
+                  />
+                  <input
+                    type="email"
+                    placeholder="Email (para login)"
+                    value={barberForm.email}
+                    onChange={(e) => setBarberForm({ ...barberForm, email: e.target.value })}
+                    style={styles.input}
+                    required
+                  />
+                  <input
+                    type="password"
+                    placeholder={isEditingBarber ? "Nova Senha (deixe em branco para manter)" : "Senha (minimo 6 caracteres)"}
+                    value={barberForm.password}
+                    onChange={(e) => setBarberForm({ ...barberForm, password: e.target.value })}
+                    style={styles.input}
+                    required={!isEditingBarber}
                   />
                   <input
                     type="text"
@@ -608,15 +674,16 @@ export default function AdminDashboard() {
                   <p style={styles.emptyState}>Nenhum barbeiro cadastrado</p>
                 ) : (
                   <>
-                    <div style={styles.tableHeader}>
+                    <div style={{...styles.tableHeader, gridTemplateColumns: '80px 2fr 2fr 2fr 2fr 1.5fr'}}>
                       <div style={styles.tableCell}>Foto</div>
                       <div style={styles.tableCell}>Nome</div>
+                      <div style={styles.tableCell}>Email</div>
                       <div style={styles.tableCell}>Telefone</div>
                       <div style={styles.tableCell}>Especialidade</div>
                       <div style={styles.tableCell}>Ações</div>
                     </div>
                     {barbers.map((barber) => (
-                      <div key={barber.id} style={styles.tableRow}>
+                      <div key={barber.id} style={{...styles.tableRow, gridTemplateColumns: '80px 2fr 2fr 2fr 2fr 1.5fr'}}>
                         <div style={styles.tableCell}>
                           {barber.photo_url ? (
                             <img
@@ -641,10 +708,12 @@ export default function AdminDashboard() {
                           )}
                         </div>
                         <div style={styles.tableCell}>{barber.name}</div>
+                        <div style={styles.tableCell}>{barber.email || '-'}</div>
                         <div style={styles.tableCell}>{barber.phone}</div>
                         <div style={styles.tableCell}>{barber.specialty || '-'}
                         </div>
                         <div style={styles.tableCell}>
+                          <button onClick={() => handleEditBarber(barber)} style={{...styles.addBtn, marginBottom: 0, padding: '6px 12px', fontSize: '12px', marginRight: '5px', backgroundColor: '#007bff'}}>Editar</button>
                           <button onClick={() => handleDeleteBarber(barber.id)} style={styles.deleteBtn}>
                             Deletar
                           </button>
@@ -823,20 +892,29 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Logo</label>
-                    {settings.logo_url && <img src={settings.logo_url} alt="Logo" style={{ maxWidth: '100px', marginTop: '5px' }} />}
-                  </div>
-                  <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Banner</label>
-                    {settings.banner_url && <img src={settings.banner_url} alt="Banner" style={{ maxWidth: '200px', marginTop: '5px' }} />}
+                    <label style={styles.configLabel}>Imagens</label>
+                    <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
+                      {settings.logo_url && (
+                        <div>
+                          <p style={{ fontSize: '10px', color: '#aaa', marginBottom: '5px' }}>Logo</p>
+                          <img src={settings.logo_url} alt="Logo" style={{ height: '60px', borderRadius: '4px' }} />
+                        </div>
+                      )}
+                      {settings.banner_url && (
+                        <div>
+                          <p style={{ fontSize: '10px', color: '#aaa', marginBottom: '5px' }}>Banner</p>
+                          <img src={settings.banner_url} alt="Banner" style={{ height: '60px', borderRadius: '4px' }} />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
               {isEditingSettings && (
-                <div style={styles.configCard}>
+                <div style={styles.form}>
                   <form onSubmit={handleSaveSettings}>
-                    <h3 style={styles.formSectionTitle}>Informações Gerais</h3>
+                    <h3 style={styles.formSectionTitle}>Informações Básicas</h3>
                     <input
                       type="text"
                       placeholder="Nome da Barbearia"
@@ -845,19 +923,21 @@ export default function AdminDashboard() {
                         setEditSettings({ ...editSettings, name: e.target.value })
                       }
                       style={styles.input}
+                      required
                     />
                     <input
                       type="text"
-                      placeholder="Slug da Barbearia (URL)"
+                      placeholder="Slug da Barbearia (Ex: barbearia-do-ze)"
                       value={editSettings.slug || ""}
                       onChange={(e) =>
                         setEditSettings({ ...editSettings, slug: e.target.value })
                       }
                       style={styles.input}
+                      required
                     />
                     <input
                       type="text"
-                      placeholder="Telefone de Contato"
+                      placeholder="Telefone"
                       value={editSettings.phone || ""}
                       onChange={(e) =>
                         setEditSettings({ ...editSettings, phone: e.target.value })
@@ -1068,18 +1148,9 @@ export default function AdminDashboard() {
                     {galleryPhotos.map((photo) => (
                       <div key={photo.id} style={styles.galleryItemContainer}>
                         <img
-                            src={photo.url || photo.image_url || photo.path} 
-  
+                          src={photo.image_url || photo.url}
                           alt="Galeria"
-  style={styles.galleryItemImage}
-  onError={(e) => {
-    // Se a imagem falhar, tenta adicionar a barra inicial caso tenha vindo sem
-    if (photo.url && !photo.url.startsWith('http' ) && !photo.url.startsWith('/')) {
-       e.target.src = '/' + photo.url;
-    }
-  }}
-                          
-                      
+                          style={styles.galleryItemImage}
                         />
                         <button
                           onClick={() => handleDeletePhoto(photo.id)}
@@ -1107,9 +1178,9 @@ const styles = {
   headerRight: { display: 'flex', alignItems: 'center', gap: '20px' },
   user: { fontSize: '14px', color: '#aaa' },
   logoutBtn: { backgroundColor: '#E50914', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  notification: { padding: '15px', margin: '20px', borderRadius: '4px', color: '#000', fontWeight: 'bold' },
+  notification: { padding: '15px', margin: '20px', borderRadius: '4px', color: '#000', fontWeight: 'bold', position: 'fixed', top: '20px', right: '20px', zIndex: 1000 },
   main: { display: 'flex', minHeight: 'calc(100vh - 80px)' },
-  sidebar: { width: '200px', display: typeof window !== 'undefined' && window.innerWidth < 768 ? (isSidebarOpen ? 'block' : 'none') : 'block', position: typeof window !== 'undefined' && window.innerWidth < 768 ? 'fixed' : 'relative', zIndex: 1000, height: '100%', backgroundColor: '#111', borderRight: '1px solid #222', padding: '20px 0' },
+  sidebar: { width: '200px', backgroundColor: '#111', borderRight: '1px solid #222', padding: '20px 0' },
   sidebarItem: { padding: '15px 20px', cursor: 'pointer', borderLeft: '3px solid transparent', color: '#aaa', fontSize: '14px', transition: 'all 0.3s' },
   content: { flex: 1, padding: '30px', overflowY: 'auto' },
   sectionTitle: { fontSize: '24px', fontWeight: 'bold', color: '#E50914', marginBottom: '20px' },
@@ -1151,4 +1222,5 @@ const styles = {
   galleryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px' },
   galleryItemContainer: { position: 'relative', borderRadius: '8px', overflow: 'hidden' },
   galleryItemImage: { width: '100%', height: '150px', objectFit: 'cover' },
+  loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#000', color: '#E50914', fontSize: '18px' },
 };

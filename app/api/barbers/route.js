@@ -1,4 +1,5 @@
 ﻿import { sql, initDatabase } from '../../../lib/db.js';
+import bcrypt from 'bcryptjs';
 
 export async function GET(req) {
   try {
@@ -6,10 +7,13 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const tenantId = searchParams.get('tenant_id') || 1;
 
+    // ✅ ATUALIZADO: JOIN com a tabela users para trazer o email
     const barbers = await sql`
-      SELECT * FROM barbers 
-      WHERE tenant_id = ${parseInt(tenantId)}
-      ORDER BY name ASC
+      SELECT b.*, u.email 
+      FROM barbers b
+      LEFT JOIN users u ON b.user_id = u.id
+      WHERE b.tenant_id = ${parseInt(tenantId)}
+      ORDER BY b.name ASC
     `;
 
     return Response.json({ 
@@ -30,18 +34,53 @@ export async function POST(req) {
     await initDatabase();
     const body = await req.json();
     
-    // CORREÇÃO: Adicionado photo_url no recebimento do body
-    const { tenant_id, name, phone, specialty, photo_url, commission_percentage } = body;
+    const { tenant_id, name, phone, email, password, specialty, photo_url, commission_percentage } = body;
 
-    if (!tenant_id || !name) {
-      return Response.json({ success: false, error: 'tenant_id e name são obrigatórios' }, { status: 400 });
+    if (!tenant_id || !name || !email || !password) {
+      return Response.json({ 
+        success: false, 
+        error: 'tenant_id, name, email e password são obrigatórios' 
+      }, { status: 400 });
     }
 
-    // CORREÇÃO: Adicionado photo_url no comando INSERT
+    if (password.length < 6) {
+      return Response.json({ 
+        success: false, 
+        error: 'A senha deve ter no mínimo 6 caracteres' 
+      }, { status: 400 });
+    }
+
+    // Verificar se o email já existe
+    const existingUser = await sql`
+      SELECT id FROM users WHERE email = ${email}
+    `;
+
+    if (existingUser.length > 0) {
+      return Response.json({ 
+        success: false, 
+        error: 'Este email já está cadastrado' 
+      }, { status: 400 });
+    }
+
+    // Hash da senha
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Criar usuário com role 'barber'
+    // Removido created_at e updated_at para deixar o banco gerenciar automaticamente conforme seu original
+    const userResult = await sql`
+      INSERT INTO users (name, email, password, role, tenant_id)
+      VALUES (${name}, ${email}, ${hashedPassword}, 'barber', ${parseInt(tenant_id)})
+      RETURNING id
+    `;
+
+    const userId = userResult[0].id;
+
+    // Criar barbeiro vinculado ao usuário
     const result = await sql`
-      INSERT INTO barbers (tenant_id, name, phone, specialty, photo_url, commission_percentage)
+      INSERT INTO barbers (tenant_id, user_id, name, phone, specialty, photo_url, commission_percentage)
       VALUES (
         ${parseInt(tenant_id)}, 
+        ${userId},
         ${name}, 
         ${phone || ''}, 
         ${specialty || ''}, 
@@ -51,10 +90,17 @@ export async function POST(req) {
       RETURNING *
     `;
 
-    return Response.json({ success: true, data: result[0] });
+    return Response.json({ 
+      success: true, 
+      data: result[0],
+      message: `Barbeiro criado com sucesso! Email: ${email}`
+    });
   } catch (error) {
     console.error('Erro ao criar barbeiro:', error);
-    return Response.json({ success: false, error: error.message }, { status: 500 });
+    return Response.json({ 
+      success: false, 
+      error: error.message 
+    }, { status: 500 });
   }
 }
 
@@ -63,14 +109,48 @@ export async function PUT(req) {
     await initDatabase();
     const body = await req.json();
     
-    // CORREÇÃO: Adicionado photo_url no recebimento do body
-    const { id, name, phone, specialty, photo_url, commission_percentage } = body;
+    // ✅ ATUALIZADO: Recebe email e password para edição conforme sua nova necessidade
+    const { id, name, phone, email, password, specialty, photo_url, commission_percentage } = body;
 
     if (!id) {
       return Response.json({ success: false, error: 'id é obrigatório' }, { status: 400 });
     }
 
-    // CORREÇÃO: Adicionado photo_url no comando UPDATE
+    // 1. Buscar o user_id vinculado a este barbeiro
+    const barberCheck = await sql`SELECT user_id FROM barbers WHERE id = ${parseInt(id)}`;
+    if (barberCheck.length === 0) {
+      return Response.json({ success: false, error: 'Barbeiro não encontrado' }, { status: 404 });
+    }
+    const userId = barberCheck[0].user_id;
+
+    // 2. Se o email foi enviado, verificar se já pertence a outro usuário
+    if (email) {
+      const existingUser = await sql`
+        SELECT id FROM users WHERE email = ${email} AND id != ${userId}
+      `;
+      if (existingUser.length > 0) {
+        return Response.json({ success: false, error: 'Este email já está em uso por outro usuário' }, { status: 400 });
+      }
+      
+      // Atualizar email e nome na tabela users
+      await sql`
+        UPDATE users 
+        SET email = ${email}, name = ${name} 
+        WHERE id = ${userId}
+      `;
+    }
+
+    // 3. Se uma nova senha foi enviada, atualizar com hash
+    if (password && password.trim() !== '') {
+      if (password.length < 6) {
+        return Response.json({ success: false, error: 'A nova senha deve ter no mínimo 6 caracteres' }, { status: 400 });
+      }
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await sql`UPDATE users SET password = ${hashedPassword} WHERE id = ${userId}`;
+    }
+
+    // 4. Atualizar os dados na tabela barbers
+    // Removido updated_at conforme seu original
     const result = await sql`
       UPDATE barbers
       SET 
@@ -78,13 +158,16 @@ export async function PUT(req) {
         phone = ${phone || ''}, 
         specialty = ${specialty || ''}, 
         photo_url = ${photo_url || ''}, 
-        commission_percentage = ${parseFloat(commission_percentage) || 0},
-        updated_at = NOW()
+        commission_percentage = ${parseFloat(commission_percentage) || 0}
       WHERE id = ${parseInt(id)}
       RETURNING *
     `;
 
-    return Response.json({ success: true, data: result[0] });
+    return Response.json({ 
+      success: true, 
+      data: result[0],
+      message: 'Barbeiro atualizado com sucesso!'
+    });
   } catch (error) {
     console.error('Erro ao atualizar barbeiro:', error);
     return Response.json({ success: false, error: error.message }, { status: 500 });
@@ -101,6 +184,15 @@ export async function DELETE(req) {
       return Response.json({ success: false, error: 'id é obrigatório' }, { status: 400 });
     }
 
+    // Buscar o barbeiro para obter o user_id
+    const barber = await sql`SELECT user_id FROM barbers WHERE id = ${parseInt(id)}`;
+    
+    if (barber.length > 0 && barber[0].user_id) {
+      // Deletar o usuário associado
+      await sql`DELETE FROM users WHERE id = ${barber[0].user_id}`;
+    }
+
+    // Deletar o barbeiro
     await sql`DELETE FROM barbers WHERE id = ${parseInt(id)}`;
 
     return Response.json({ success: true });
