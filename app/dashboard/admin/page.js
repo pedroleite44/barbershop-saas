@@ -30,6 +30,18 @@ export default function AdminDashboard() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [galleryPhotos, setGalleryPhotos] = useState([]);
 
+  // ✅ NOVO: Estado para detectar mobile e ajustar layout
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   function showNotification(message, type = 'success') {
     setNotification({ message, type, visible: true });
     setTimeout(() => {
@@ -426,14 +438,24 @@ export default function AdminDashboard() {
 
   return (
     <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Admin Dashboard - {tenantName}</h1>
+      <div style={{...styles.header, padding: isMobile ? '15px' : '20px'}}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          {isMobile && (
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+              style={{ background: 'none', border: 'none', color: '#E50914', fontSize: '24px', cursor: 'pointer' }}
+            >
+              ☰
+            </button>
+          )}
+          <h1 style={{...styles.title, fontSize: isMobile ? '20px' : '28px'}}>Admin Dashboard - {tenantName}</h1>
+        </div>
         <div style={styles.headerRight}>
-          {user && <span style={styles.user}>Olá, {user.name}</span>}
+          {!isMobile && user && <span style={styles.user}>Olá, {user.name}</span>}
           <button onClick={() => {
             localStorage.clear();
             router.push('/login');
-          }} style={styles.logoutBtn}>Sair</button>
+          }} style={{...styles.logoutBtn, padding: isMobile ? '6px 12px' : '8px 16px', fontSize: isMobile ? '12px' : '14px'}}>Sair</button>
         </div>
       </div>
 
@@ -442,41 +464,38 @@ export default function AdminDashboard() {
           ...styles.notification,
           backgroundColor: notification.type === 'success' ? '#d4edda' : '#f8d7da',
           color: notification.type === 'success' ? '#155724' : '#721c24',
+          top: isMobile ? '10px' : '20px',
+          right: isMobile ? '10px' : '20px',
+          maxWidth: isMobile ? '90%' : 'auto'
         }}>
           {notification.message}
         </div>
       )}
 
       <div style={styles.main}>
-        <div style={styles.sidebar}>
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            style={{
-              display: typeof window !== 'undefined' && window.innerWidth < 768 ? (isSidebarOpen ? 'block' : 'none') : 'block',
-              backgroundColor: 'transparent',
-              border: 'none',
-              color: '#E50914',
-              fontSize: '24px',
-              cursor: 'pointer',
-              padding: '10px',
-              textAlign: 'right',
-              width: '100%',
-            }}
-          >
-            {isSidebarOpen ? '✕' : '☰'}
-          </button>
-          <div 
-            style={{
-              display: typeof window !== 'undefined' && window.innerWidth < 768 ? (isSidebarOpen ? 'block' : 'none') : 'block',
-            }}
-          >
+        <div style={{
+          ...styles.sidebar,
+          display: isMobile && !isSidebarOpen ? 'none' : 'block',
+          position: isMobile ? 'fixed' : 'relative',
+          zIndex: 100,
+          height: isMobile ? '100%' : 'auto',
+          width: isMobile ? '100%' : '200px',
+          top: 0,
+          left: 0,
+          backgroundColor: '#111'
+        }}>
+          {isMobile && (
+             <button onClick={() => setIsSidebarOpen(false)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#E50914', fontSize: '24px' }}>✕</button>
+          )}
+          <div style={{ marginTop: isMobile ? '50px' : '0' }}>
             <div
               style={{
                 ...styles.sidebarItem,
                 borderLeftColor: activeTab === 'dashboard' ? '#E50914' : 'transparent',
                 color: activeTab === 'dashboard' ? '#E50914' : '#aaa',
+                backgroundColor: activeTab === 'dashboard' ? '#1a1a1a' : 'transparent'
               }}
-              onClick={() => setActiveTab('dashboard')}
+              onClick={() => { setActiveTab('dashboard'); if (isMobile) setIsSidebarOpen(false); }}
             >
               Dashboard
             </div>
@@ -485,8 +504,9 @@ export default function AdminDashboard() {
                 ...styles.sidebarItem,
                 borderLeftColor: activeTab === 'barbers' ? '#E50914' : 'transparent',
                 color: activeTab === 'barbers' ? '#E50914' : '#aaa',
+                backgroundColor: activeTab === 'barbers' ? '#1a1a1a' : 'transparent'
               }}
-              onClick={() => setActiveTab('barbers')}
+              onClick={() => { setActiveTab('barbers'); if (isMobile) setIsSidebarOpen(false); }}
             >
               Barbeiros
             </div>
@@ -495,8 +515,9 @@ export default function AdminDashboard() {
                 ...styles.sidebarItem,
                 borderLeftColor: activeTab === 'services' ? '#E50914' : 'transparent',
                 color: activeTab === 'services' ? '#E50914' : '#aaa',
+                backgroundColor: activeTab === 'services' ? '#1a1a1a' : 'transparent'
               }}
-              onClick={() => setActiveTab('services')}
+              onClick={() => { setActiveTab('services'); if (isMobile) setIsSidebarOpen(false); }}
             >
               Serviços
             </div>
@@ -505,8 +526,9 @@ export default function AdminDashboard() {
                 ...styles.sidebarItem,
                 borderLeftColor: activeTab === 'appointments' ? '#E50914' : 'transparent',
                 color: activeTab === 'appointments' ? '#E50914' : '#aaa',
+                backgroundColor: activeTab === 'appointments' ? '#1a1a1a' : 'transparent'
               }}
-              onClick={() => setActiveTab('appointments')}
+              onClick={() => { setActiveTab('appointments'); if (isMobile) setIsSidebarOpen(false); }}
             >
               Agendamentos
             </div>
@@ -515,8 +537,9 @@ export default function AdminDashboard() {
                 ...styles.sidebarItem,
                 borderLeftColor: activeTab === 'settings' ? '#E50914' : 'transparent',
                 color: activeTab === 'settings' ? '#E50914' : '#aaa',
+                backgroundColor: activeTab === 'settings' ? '#1a1a1a' : 'transparent'
               }}
-              onClick={() => setActiveTab('settings')}
+              onClick={() => { setActiveTab('settings'); if (isMobile) setIsSidebarOpen(false); }}
             >
               Configurações
             </div>
@@ -525,49 +548,50 @@ export default function AdminDashboard() {
                 ...styles.sidebarItem,
                 borderLeftColor: activeTab === 'gallery' ? '#E50914' : 'transparent',
                 color: activeTab === 'gallery' ? '#E50914' : '#aaa',
+                backgroundColor: activeTab === 'gallery' ? '#1a1a1a' : 'transparent'
               }}
-              onClick={() => setActiveTab('gallery')}
+              onClick={() => { setActiveTab('gallery'); if (isMobile) setIsSidebarOpen(false); }}
             >
               Galeria
             </div>
           </div>
         </div>
 
-        <main style={styles.content}>
+        <main style={{...styles.content, padding: isMobile ? '15px' : '30px'}}>
           {activeTab === 'dashboard' && (
             <div>
               <h2 style={styles.sectionTitle}>Dashboard</h2>
-              <div style={styles.revenueGrid}>
+              <div style={{...styles.revenueGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)'}}>
                 <div style={{ ...styles.revenueCard, borderLeftColor: '#E50914' }}>
                   <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '10px' }}>Faturamento Hoje</p>
-                  <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#E50914' }}>R$ {revenueStats.today.toFixed(2)}</p>
+                  <p style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: 'bold', color: '#E50914' }}>R$ {revenueStats.today.toFixed(2)}</p>
                 </div>
                 <div style={{ ...styles.revenueCard, borderLeftColor: '#007bff' }}>
                   <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '10px' }}>Faturamento Semana</p>
-                  <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#007bff' }}>R$ {revenueStats.thisWeek.toFixed(2)}</p>
+                  <p style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: 'bold', color: '#007bff' }}>R$ {revenueStats.thisWeek.toFixed(2)}</p>
                 </div>
                 <div style={{ ...styles.revenueCard, borderLeftColor: '#28a745' }}>
                   <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '10px' }}>Faturamento Mês</p>
-                  <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#28a745' }}>R$ {revenueStats.thisMonth.toFixed(2)}</p>
+                  <p style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: 'bold', color: '#28a745' }}>R$ {revenueStats.thisMonth.toFixed(2)}</p>
                 </div>
               </div>
 
-              <div style={styles.statsGrid}>
+              <div style={{...styles.statsGrid, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(200px, 1fr))'}}>
                 <div style={styles.statCard}>
                   <p style={styles.statLabel}>Total de Barbeiros</p>
-                  <p style={styles.statValue}>{barbers.length}</p>
+                  <p style={{...styles.statValue, fontSize: isMobile ? '24px' : '32px'}}>{barbers.length}</p>
                 </div>
                 <div style={styles.statCard}>
                   <p style={styles.statLabel}>Total de Serviços</p>
-                  <p style={styles.statValue}>{services.length}</p>
+                  <p style={{...styles.statValue, fontSize: isMobile ? '24px' : '32px'}}>{services.length}</p>
                 </div>
                 <div style={styles.statCard}>
                   <p style={styles.statLabel}>Agendamentos Pendentes</p>
-                  <p style={styles.statValue}>{appointments.filter(apt => apt.status === 'pending').length}</p>
+                  <p style={{...styles.statValue, fontSize: isMobile ? '24px' : '32px'}}>{appointments.filter(apt => apt.status === 'pending').length}</p>
                 </div>
                 <div style={styles.statCard}>
                   <p style={styles.statLabel}>Agendamentos Concluídos</p>
-                  <p style={styles.statValue}>{appointments.filter(apt => apt.status === 'completed').length}</p>
+                  <p style={{...styles.statValue, fontSize: isMobile ? '24px' : '32px'}}>{appointments.filter(apt => apt.status === 'completed').length}</p>
                 </div>
               </div>
             </div>
@@ -638,7 +662,7 @@ export default function AdminDashboard() {
                     style={styles.input}
                   />
 
-                  <div style={styles.uploadSection}>
+                  <div style={{...styles.uploadSection, gridTemplateColumns: '1fr'}}>
                     <div style={styles.uploadBox}>
                       <label style={styles.uploadLabel}>Foto do Barbeiro</label>
                       <input
@@ -669,11 +693,11 @@ export default function AdminDashboard() {
                 </form>
               )}
 
-              <div style={styles.table}>
+              <div style={{...styles.table, overflowX: 'auto'}}>
                 {barbers.length === 0 ? (
                   <p style={styles.emptyState}>Nenhum barbeiro cadastrado</p>
                 ) : (
-                  <>
+                  <div style={{ minWidth: isMobile ? '600px' : 'auto' }}>
                     <div style={{...styles.tableHeader, gridTemplateColumns: '80px 2fr 2fr 2fr 2fr 1.5fr'}}>
                       <div style={styles.tableCell}>Foto</div>
                       <div style={styles.tableCell}>Nome</div>
@@ -720,7 +744,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     ))}
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -772,11 +796,11 @@ export default function AdminDashboard() {
                 </form>
               )}
 
-              <div style={styles.table}>
+              <div style={{...styles.table, overflowX: 'auto'}}>
                 {services.length === 0 ? (
                   <p style={styles.emptyState}>Nenhum serviço cadastrado</p>
                 ) : (
-                  <>
+                  <div style={{ minWidth: isMobile ? '500px' : 'auto' }}>
                     <div style={styles.tableHeader}>
                       <div style={styles.tableCell}>Serviço</div>
                       <div style={styles.tableCell}>Descrição</div>
@@ -797,7 +821,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     ))}
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -806,11 +830,11 @@ export default function AdminDashboard() {
           {activeTab === 'appointments' && (
             <div>
               <h2 style={styles.sectionTitle}>Agendamentos</h2>
-              <div style={styles.table}>
+              <div style={{...styles.table, overflowX: 'auto'}}>
                 {appointments.length === 0 ? (
                   <p style={styles.emptyState}>Nenhum agendamento</p>
                 ) : (
-                  <>
+                  <div style={{ minWidth: isMobile ? '500px' : 'auto' }}>
                     <div style={styles.tableHeader}>
                       <div style={styles.tableCell}>Data</div>
                       <div style={styles.tableCell}>Hora</div>
@@ -825,7 +849,7 @@ export default function AdminDashboard() {
                         <div style={styles.tableCell}>{apt.phone}</div>
                       </div>
                     ))}
-                  </>
+                  </div>
                 )}
               </div>
             </div>
@@ -860,35 +884,19 @@ export default function AdminDashboard() {
                     <p style={styles.configValue}>{settings.email}</p>
                   </div>
                   <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Endereço</label>
-                    <p style={styles.configValue}>{settings.address}, {settings.city} - {settings.state}, {settings.zip_code}</p>
-                  </div>
-                  <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Horário de Funcionamento</label>
-                    <p style={styles.configValue}>{settings.opening_time} - {settings.closing_time}</p>
-                  </div>
-                  <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Intervalo de Agendamento</label>
-                    <p style={styles.configValue}>{settings.appointment_interval} minutos</p>
-                  </div>
-                  <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Instagram</label>
-                    <p style={styles.configValue}>{settings.instagram_url}</p>
-                  </div>
-                  <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Slug</label>
-                    <p style={styles.configValue}>{settings.slug}</p>
-                  </div>
-                  <div style={styles.configItem}>
                     <label style={styles.configLabel}>Descrição</label>
-                    <p style={styles.configValue}>{settings.description}</p>
+                    <p style={styles.configValue}>{settings.description || '-'}</p>
+                  </div>
+                  <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Endereço</label>
+                    <p style={styles.configValue}>{settings.address}, {settings.city} - {settings.state}</p>
                   </div>
                   <div style={styles.configItem}>
                     <label style={styles.configLabel}>Cores</label>
                     <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.primary_color, borderRadius: '4px', border: '1px solid #333' }}></div>
-                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.secondary_color, borderRadius: '4px', border: '1px solid #333' }}></div>
-                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.accent_color, borderRadius: '4px', border: '1px solid #333' }}></div>
+                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.primary_color, borderRadius: '4px', border: '1px solid #333' }} title="Primária"></div>
+                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.secondary_color, borderRadius: '4px', border: '1px solid #333' }} title="Secundária"></div>
+                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.accent_color, borderRadius: '4px', border: '1px solid #333' }} title="Destaque"></div>
                     </div>
                   </div>
                   <div style={styles.configItem}>
@@ -897,7 +905,7 @@ export default function AdminDashboard() {
                       {settings.logo_url && (
                         <div>
                           <p style={{ fontSize: '10px', color: '#aaa', marginBottom: '5px' }}>Logo</p>
-                          <img src={settings.logo_url} alt="Logo" style={{ height: '60px', borderRadius: '4px' }} />
+                          <img src={settings.logo_url} alt="Logo" style={{ height: '40px', borderRadius: '4px' }} />
                         </div>
                       )}
                       {settings.banner_url && (
@@ -1039,7 +1047,7 @@ export default function AdminDashboard() {
                     />
 
                     <h3 style={styles.formSectionTitle}>Cores da Marca</h3>
-                    <div style={styles.colorRow}>
+                    <div style={{...styles.colorRow, gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)'}}>
                       <div style={styles.colorGroup}>
                         <label style={styles.label}>Cor Primária</label>
                         <input
@@ -1076,7 +1084,7 @@ export default function AdminDashboard() {
                     </div>
 
                     <h3 style={styles.formSectionTitle}>Imagens</h3>
-                    <div style={styles.uploadSection}>
+                    <div style={{...styles.uploadSection, gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)'}}>
                       <div style={styles.uploadBox}>
                         <label style={styles.uploadLabel}>Logo da Barbearia</label>
                         <input
@@ -1144,7 +1152,7 @@ export default function AdminDashboard() {
                 {galleryPhotos.length === 0 ? (
                   <p style={styles.emptyState}>Nenhuma foto na galeria.</p>
                 ) : (
-                  <div style={styles.galleryGrid}>
+                  <div style={{...styles.galleryGrid, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill, minmax(150px, 1fr))'}}>
                     {galleryPhotos.map((photo) => (
                       <div key={photo.id} style={styles.galleryItemContainer}>
                         <img
@@ -1173,43 +1181,43 @@ export default function AdminDashboard() {
 
 const styles = {
   container: { backgroundColor: '#000', color: '#fff', minHeight: '100vh', fontFamily: 'Arial, sans-serif' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: '#111', borderBottom: '1px solid #222' },
-  title: { fontSize: '28px', fontWeight: 'bold', color: '#E50914', margin: 0 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', borderBottom: '1px solid #222' },
+  title: { fontWeight: 'bold', color: '#E50914', margin: 0 },
   headerRight: { display: 'flex', alignItems: 'center', gap: '20px' },
   user: { fontSize: '14px', color: '#aaa' },
-  logoutBtn: { backgroundColor: '#E50914', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
-  notification: { padding: '15px', margin: '20px', borderRadius: '4px', color: '#000', fontWeight: 'bold', position: 'fixed', top: '20px', right: '20px', zIndex: 1000 },
+  logoutBtn: { backgroundColor: '#E50914', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  notification: { padding: '15px', borderRadius: '4px', fontWeight: 'bold', position: 'fixed', zIndex: 1000 },
   main: { display: 'flex', minHeight: 'calc(100vh - 80px)' },
-  sidebar: { width: '200px', backgroundColor: '#111', borderRight: '1px solid #222', padding: '20px 0' },
-  sidebarItem: { padding: '15px 20px', cursor: 'pointer', borderLeft: '3px solid transparent', color: '#aaa', fontSize: '14px', transition: 'all 0.3s' },
-  content: { flex: 1, padding: '30px', overflowY: 'auto' },
+  sidebar: { backgroundColor: '#111', borderRight: '1px solid #222', padding: '20px 0' },
+  sidebarItem: { padding: '15px 20px', cursor: 'pointer', borderLeft: '3px solid transparent', fontSize: '14px', transition: 'all 0.3s' },
+  content: { flex: 1, overflowY: 'auto' },
   sectionTitle: { fontSize: '24px', fontWeight: 'bold', color: '#E50914', marginBottom: '20px' },
-  revenueGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '30px' },
+  revenueGrid: { display: 'grid', gap: '20px', marginBottom: '30px' },
   revenueCard: { backgroundColor: '#111', padding: '20px', borderRadius: '8px', borderLeft: '4px solid' },
   addBtn: { backgroundColor: '#E50914', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginBottom: '20px' },
   form: { backgroundColor: '#111', border: '1px solid #222', borderRadius: '8px', padding: '20px', marginBottom: '20px' },
   input: { width: '100%', padding: '10px', marginBottom: '10px', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' },
   submitBtn: { width: '100%', padding: '12px', backgroundColor: '#E50914', color: '#000', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' },
-  table: { backgroundColor: '#111', overflowX: 'auto', border: '1px solid #222', borderRadius: '8px', overflow: 'hidden' },
-  tableHeader: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', padding: '15px', backgroundColor: '#1a1a1a', borderBottom: '1px solid #222', fontWeight: 'bold' },
+  table: { backgroundColor: '#111', border: '1px solid #222', borderRadius: '8px', overflow: 'hidden' },
+  tableHeader: { display: 'grid', padding: '15px', backgroundColor: '#1a1a1a', borderBottom: '1px solid #222', fontWeight: 'bold' },
   tableCell: { padding: '10px', fontSize: '13px' },
-  tableRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', padding: '15px', borderBottom: '1px solid #222', alignItems: 'center' },
+  tableRow: { display: 'grid', padding: '15px', borderBottom: '1px solid #222', alignItems: 'center' },
   emptyState: { padding: '30px', textAlign: 'center', color: '#aaa' },
   deleteBtn: { backgroundColor: '#FF6B6B', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' },
+  statsGrid: { display: 'grid', gap: '20px' },
   statCard: { backgroundColor: '#111', border: '1px solid #222', borderRadius: '8px', padding: '20px', textAlign: 'center' },
   statLabel: { fontSize: '14px', color: '#aaa', marginBottom: '10px' },
-  statValue: { fontSize: '32px', fontWeight: 'bold', color: '#E50914' },
+  statValue: { fontWeight: 'bold', color: '#E50914' },
   configCard: { backgroundColor: '#111', border: '1px solid #222', borderRadius: '8px', padding: '30px', marginBottom: '20px' },
   configItem: { marginBottom: '20px' },
   configLabel: { fontSize: '12px', fontWeight: '500', color: '#E50914', marginBottom: '5px', display: 'block' },
   configValue: { fontSize: '14px', color: '#aaa', margin: '0' },
   formSectionTitle: { fontSize: '16px', fontWeight: 'bold', color: '#E50914', marginTop: '20px', marginBottom: '15px', borderBottom: '1px solid #222', paddingBottom: '10px' },
   label: { fontSize: '12px', fontWeight: '500', color: '#E50914' },
-  colorRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' },
+  colorRow: { display: 'grid', gap: '20px', marginBottom: '20px' },
   colorGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
   colorInput: { width: '100%', height: '40px', border: '1px solid #333', borderRadius: '4px', cursor: 'pointer' },
-  uploadSection: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' },
+  uploadSection: { display: 'grid', gap: '20px', marginBottom: '20px' },
   uploadBox: { backgroundColor: '#1a1a1a', border: '2px dashed #333', borderRadius: '8px', padding: '20px', textAlign: 'center' },
   uploadLabel: { fontSize: '12px', fontWeight: '500', color: '#E50914', display: 'block', marginBottom: '10px' },
   fileInput: { display: 'block', width: '100%', marginBottom: '10px', color: '#aaa' },
@@ -1219,7 +1227,7 @@ const styles = {
   removePhotoBtn: { backgroundColor: '#FF6B6B', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' },
   galleryPreview: { marginTop: '30px' },
   galleryTitle: { fontSize: '14px', fontWeight: 'bold', color: '#E50914', marginBottom: '15px' },
-  galleryGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px' },
+  galleryGrid: { display: 'grid', gap: '15px' },
   galleryItemContainer: { position: 'relative', borderRadius: '8px', overflow: 'hidden' },
   galleryItemImage: { width: '100%', height: '150px', objectFit: 'cover' },
   loading: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#000', color: '#E50914', fontSize: '18px' },
