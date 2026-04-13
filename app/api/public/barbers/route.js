@@ -1,98 +1,60 @@
-﻿import { sql, initDatabase } from '../../../../lib/db.js';
+﻿import { sql } from '@/lib/db';
+import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
-
-export async function GET(req) {
+export async function GET(request) {
   try {
-    await initDatabase();
-    const { searchParams } = new URL(req.url);
-    const tenantId = searchParams.get('tenant_id') || 1;
+    const { searchParams } = new URL(request.url);
+    const tenant_id = searchParams.get('tenant_id');
 
+    // Se não houver tenant_id, retornamos erro para evitar misturar dados
+    if (!tenant_id) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'O identificador da barbearia (tenant_id) é obrigatório.' 
+      }, { status: 400 });
+    }
+
+    // FILTRO ADICIONADO: Agora buscamos apenas os barbeiros daquela barbearia específica
     const barbers = await sql`
-      SELECT id, name, phone, specialty, photo_url 
+      SELECT id, name, specialty, photo_url, bio, is_active 
       FROM barbers 
-      WHERE tenant_id = ${parseInt(tenantId)}
+      WHERE tenant_id = ${tenant_id} 
+      AND is_active = true
       ORDER BY name ASC
     `;
 
-    return Response.json({ 
+    return NextResponse.json({ 
       success: true, 
       data: barbers 
     });
+
   } catch (error) {
     console.error('Erro ao buscar barbeiros:', error);
-    return Response.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Erro interno ao buscar lista de barbeiros.' 
+    }, { status: 500 });
   }
 }
 
-export async function POST(req) {
+export async function POST(request) {
   try {
-    await initDatabase();
-    const body = await req.json();
-    const { tenant_id, name, phone, specialty, photo_url, commission_percentage } = body;
+    const body = await request.json();
+    const { name, specialty, photo_url, bio, tenant_id } = body;
 
-    if (!tenant_id || !name) {
-      return Response.json({ success: false, error: 'tenant_id e name são obrigatórios' }, { status: 400 });
+    if (!name || !tenant_id) {
+      return NextResponse.json({ success: false, error: 'Nome e tenant_id são obrigatórios' }, { status: 400 });
     }
 
     const result = await sql`
-      INSERT INTO barbers (tenant_id, name, phone, specialty, photo_url, commission_percentage)
-      VALUES (${parseInt(tenant_id)}, ${name}, ${phone || ''}, ${specialty || ''}, ${photo_url || ''}, ${parseFloat(commission_percentage) || 0})
-      RETURNING *
+      INSERT INTO barbers (name, specialty, photo_url, bio, tenant_id, is_active, created_at, updated_at)
+      VALUES (${name}, ${specialty}, ${photo_url}, ${bio}, ${tenant_id}, true, NOW(), NOW())
+      RETURNING id
     `;
 
-    return Response.json({ success: true, data: result[0] });
+    return NextResponse.json({ success: true, id: result[0].id });
   } catch (error) {
     console.error('Erro ao criar barbeiro:', error);
-    return Response.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
-
-export async function PUT(req) {
-  try {
-    await initDatabase();
-    const body = await req.json();
-    const { id, name, phone, specialty, photo_url, commission_percentage } = body;
-
-    if (!id) {
-      return Response.json({ success: false, error: 'id é obrigatório' }, { status: 400 });
-    }
-
-    const result = await sql`
-      UPDATE barbers
-      SET 
-        name = ${name}, 
-        phone = ${phone || ''}, 
-        specialty = ${specialty || ''}, 
-        photo_url = ${photo_url || ''}, 
-        commission_percentage = ${parseFloat(commission_percentage) || 0},
-        updated_at = NOW()
-      WHERE id = ${parseInt(id)}
-      RETURNING *
-    `;
-
-    return Response.json({ success: true, data: result[0] });
-  } catch (error) {
-    console.error('Erro ao atualizar barbeiro:', error);
-    return Response.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
-
-export async function DELETE(req) {
-  try {
-    await initDatabase();
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return Response.json({ success: false, error: 'id é obrigatório' }, { status: 400 });
-    }
-
-    await sql`DELETE FROM barbers WHERE id = ${parseInt(id)}`;
-
-    return Response.json({ success: true });
-  } catch (error) {
-    console.error('Erro ao deletar barbeiro:', error);
-    return Response.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

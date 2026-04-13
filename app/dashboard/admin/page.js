@@ -7,6 +7,7 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [tenantName, setTenantName] = useState('');
   
   const [barbers, setBarbers] = useState([]);
@@ -104,7 +105,8 @@ export default function AdminDashboard() {
 
   async function fetchBarbers() {
     try {
-      const data = await apiCall('/api/barbers');
+      const tenantId = localStorage.getItem('tenant_id');
+      const data = await apiCall(`/api/public/barbers?tenant_id=${tenantId}`);
       setBarbers(data.data || []);
     } catch (error) {
       console.error('Erro ao buscar barbeiros:', error);
@@ -114,7 +116,8 @@ export default function AdminDashboard() {
 
   async function fetchAppointments() {
     try {
-      const data = await apiCall('/api/appointments');
+      const tenantId = localStorage.getItem('tenant_id');
+      const data = await apiCall(`/api/appointments?tenant_id=${tenantId}`);
       setAppointments(data.data || []);
     } catch (error) {
       console.error('Erro ao buscar agendamentos:', error);
@@ -138,8 +141,26 @@ export default function AdminDashboard() {
     try {
       const tenantId = localStorage.getItem('tenant_id');
       const data = await apiCall('/api/public/settings?tenant_id=' + tenantId);
-      setSettings(data.data || {});
-      setEditSettings(data.data || {});
+      if (data.success) {
+        setSettings(data.data || {});
+        // Mapeia snake_case do backend para camelCase do frontend para editSettings
+        setEditSettings({
+          ...data.data,
+          logoUrl: data.data.logo_url,
+          bannerUrl: data.data.banner_url,
+          instagramUrl: data.data.instagram_url,
+          primaryColor: data.data.primary_color,
+          secondaryColor: data.data.secondary_color,
+          accentColor: data.data.accent_color,
+          openingHours: data.data.opening_hours,
+          appointmentInterval: data.data.appointment_interval,
+          zipCode: data.data.zip_code,
+          openingTime: data.data.opening_time,
+          closingTime: data.data.closing_time,
+        });
+      } else {
+        console.error("Erro ao buscar configurações iniciais:", data.error);
+      }
 
       const galleryResponse = await apiCall('/api/public/gallery?tenant_id=' + tenantId);
       setGalleryPhotos(galleryResponse.data || []);
@@ -265,9 +286,9 @@ export default function AdminDashboard() {
       if (type === 'gallery') {
         setGalleryPhotos([...galleryPhotos, data]);
       } else if (type === 'banner') {
-        setEditSettings({ ...editSettings, banner_url: fileUrl });
+        setEditSettings({ ...editSettings, bannerUrl: fileUrl });
       } else if (type === 'logo') {
-        setEditSettings({ ...editSettings, logo_url: fileUrl });
+        setEditSettings({ ...editSettings, logoUrl: fileUrl });
       } else if (type === 'barber') {
         setBarberForm({ ...barberForm, photo_url: fileUrl });
       }
@@ -315,156 +336,195 @@ export default function AdminDashboard() {
         return;
       }
 
-      const response = await fetch('/api/settings', {
-        method: 'POST',
+      const response = await fetch("/api/settings", {
+        method: "PUT", 
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token,
-          'x-tenant-id': tenantId,
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token,
         },
-        body: JSON.stringify(editSettings),
+        body: JSON.stringify({
+          tenantId: tenantId,
+          name: editSettings.name,
+          slug: editSettings.slug,
+          phone: editSettings.phone,
+          logoUrl: editSettings.logoUrl, 
+          bannerUrl: editSettings.bannerUrl, 
+          instagramUrl: editSettings.instagramUrl, 
+          primaryColor: editSettings.primaryColor, 
+          secondaryColor: editSettings.secondaryColor, 
+          accentColor: editSettings.accentColor, 
+          description: editSettings.description,
+          address: editSettings.address,
+          openingHours: editSettings.openingHours, 
+          appointmentInterval: editSettings.appointmentInterval, 
+          email: editSettings.email, 
+          city: editSettings.city, 
+          state: editSettings.state, 
+          zipCode: editSettings.zipCode, 
+          openingTime: editSettings.openingTime, 
+          closingTime: editSettings.closingTime, 
+        }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setSettings(data);
-        setIsEditingSettings(false);
+      const result = await response.json();
+
+      if (result.success) {
         showNotification('Configurações salvas com sucesso!', 'success');
+        setIsEditingSettings(false);
+        fetchSettings(); 
       } else {
-        const error = await response.json();
-        showNotification(error.error || 'Erro ao salvar configurações', 'error');
+        showNotification(result.error || 'Erro ao salvar configurações', 'error');
       }
     } catch (error) {
-      console.error('Erro ao salvar:', error);
-      showNotification('Erro ao salvar', 'error');
-    }
-  }
-
-  async function handleLogout() {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      localStorage.clear();
-      router.push('/login');
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+      console.error('Erro ao salvar configurações:', error);
+      showNotification('Erro ao salvar configurações: ' + error.message, 'error');
     }
   }
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Painel ADM - {tenantName}</h1>
+        <h1 style={styles.title}>Admin Dashboard - {tenantName}</h1>
         <div style={styles.headerRight}>
-          {user && <span style={styles.user}>{user.email}</span>}
-          <button onClick={handleLogout} style={styles.logoutBtn}>
-            Logout
-          </button>
+          {user && <span style={styles.user}>Olá, {user.name}</span>}
+          <button onClick={() => {
+            localStorage.clear();
+            router.push('/login');
+          }} style={styles.logoutBtn}>Sair</button>
         </div>
       </div>
 
       {notification.visible && (
-        <div
-          style={{
-            ...styles.notification,
-            backgroundColor: notification.type === 'success' ? '#4CAF50' : '#f44336'
-          }}
-        >
+        <div style={{
+          ...styles.notification,
+          backgroundColor: notification.type === 'success' ? '#d4edda' : '#f8d7da',
+          color: notification.type === 'success' ? '#155724' : '#721c24',
+        }}>
           {notification.message}
         </div>
       )}
 
       <div style={styles.main}>
         <div style={styles.sidebar}>
-          <div
-            onClick={() => setActiveTab('dashboard')}
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             style={{
-              ...styles.sidebarItem,
-              borderLeftColor: activeTab === 'dashboard' ? '#E50914' : 'transparent',
-              backgroundColor: activeTab === 'dashboard' ? '#1a1a1a' : 'transparent',
-              color: activeTab === 'dashboard' ? '#fff' : '#aaa'
+              display: typeof window !== 'undefined' && window.innerWidth < 768 ? (isSidebarOpen ? 'block' : 'none') : 'block',
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: '#E50914',
+              fontSize: '24px',
+              cursor: 'pointer',
+              padding: '10px',
+              textAlign: 'right',
+              width: '100%',
             }}
           >
-            Dashboard
-          </div>
-          <div
-            onClick={() => setActiveTab('barbers')}
+            {isSidebarOpen ? '✕' : '☰'}
+          </button>
+          <div 
             style={{
-              ...styles.sidebarItem,
-              borderLeftColor: activeTab === 'barbers' ? '#E50914' : 'transparent',
-              backgroundColor: activeTab === 'barbers' ? '#1a1a1a' : 'transparent',
-              color: activeTab === 'barbers' ? '#fff' : '#aaa'
+              display: typeof window !== 'undefined' && window.innerWidth < 768 ? (isSidebarOpen ? 'block' : 'none') : 'block',
             }}
           >
-            Barbeiros
-          </div>
-          <div
-            onClick={() => setActiveTab('services')}
-            style={{
-              ...styles.sidebarItem,
-              borderLeftColor: activeTab === 'services' ? '#E50914' : 'transparent',
-              backgroundColor: activeTab === 'services' ? '#1a1a1a' : 'transparent',
-              color: activeTab === 'services' ? '#fff' : '#aaa'
-            }}
-          >
-            Serviços
-          </div>
-          <div
-            onClick={() => setActiveTab('appointments')}
-            style={{
-              ...styles.sidebarItem,
-              borderLeftColor: activeTab === 'appointments' ? '#E50914' : 'transparent',
-              backgroundColor: activeTab === 'appointments' ? '#1a1a1a' : 'transparent',
-              color: activeTab === 'appointments' ? '#fff' : '#aaa'
-            }}
-          >
-            Agendamentos
-          </div>
-          <div
-            onClick={() => setActiveTab('settings')}
-            style={{
-              ...styles.sidebarItem,
-              borderLeftColor: activeTab === 'settings' ? '#E50914' : 'transparent',
-              backgroundColor: activeTab === 'settings' ? '#1a1a1a' : 'transparent',
-              color: activeTab === 'settings' ? '#fff' : '#aaa'
-            }}
-          >
-            Configurações
+            <div
+              style={{
+                ...styles.sidebarItem,
+                borderLeftColor: activeTab === 'dashboard' ? '#E50914' : 'transparent',
+                color: activeTab === 'dashboard' ? '#E50914' : '#aaa',
+              }}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              Dashboard
+            </div>
+            <div
+              style={{
+                ...styles.sidebarItem,
+                borderLeftColor: activeTab === 'barbers' ? '#E50914' : 'transparent',
+                color: activeTab === 'barbers' ? '#E50914' : '#aaa',
+              }}
+              onClick={() => setActiveTab('barbers')}
+            >
+              Barbeiros
+            </div>
+            <div
+              style={{
+                ...styles.sidebarItem,
+                borderLeftColor: activeTab === 'services' ? '#E50914' : 'transparent',
+                color: activeTab === 'services' ? '#E50914' : '#aaa',
+              }}
+              onClick={() => setActiveTab('services')}
+            >
+              Serviços
+            </div>
+            <div
+              style={{
+                ...styles.sidebarItem,
+                borderLeftColor: activeTab === 'appointments' ? '#E50914' : 'transparent',
+                color: activeTab === 'appointments' ? '#E50914' : '#aaa',
+              }}
+              onClick={() => setActiveTab('appointments')}
+            >
+              Agendamentos
+            </div>
+            <div
+              style={{
+                ...styles.sidebarItem,
+                borderLeftColor: activeTab === 'settings' ? '#E50914' : 'transparent',
+                color: activeTab === 'settings' ? '#E50914' : '#aaa',
+              }}
+              onClick={() => setActiveTab('settings')}
+            >
+              Configurações
+            </div>
+            <div
+              style={{
+                ...styles.sidebarItem,
+                borderLeftColor: activeTab === 'gallery' ? '#E50914' : 'transparent',
+                color: activeTab === 'gallery' ? '#E50914' : '#aaa',
+              }}
+              onClick={() => setActiveTab('gallery')}
+            >
+              Galeria
+            </div>
           </div>
         </div>
 
-        <div style={styles.content}>
+        <main style={styles.content}>
           {activeTab === 'dashboard' && (
             <div>
               <h2 style={styles.sectionTitle}>Dashboard</h2>
-              
-              {/* NOVOS CARDS DE FATURAMENTO */}
               <div style={styles.revenueGrid}>
-                <div style={{...styles.revenueCard, borderLeftColor: '#4CAF50'}}>
-                  <div style={styles.statLabel}>Expectativa Hoje</div>
-                  <div style={{...styles.statValue, color: '#4CAF50'}}>R$ {revenueStats.today.toFixed(2)}</div>
+                <div style={{ ...styles.revenueCard, borderLeftColor: '#E50914' }}>
+                  <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '10px' }}>Faturamento Hoje</p>
+                  <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#E50914' }}>R$ {revenueStats.today.toFixed(2)}</p>
                 </div>
-                <div style={{...styles.revenueCard, borderLeftColor: '#2196F3'}}>
-                  <div style={styles.statLabel}>Expectativa Semana</div>
-                  <div style={{...styles.statValue, color: '#2196F3'}}>R$ {revenueStats.thisWeek.toFixed(2)}</div>
+                <div style={{ ...styles.revenueCard, borderLeftColor: '#007bff' }}>
+                  <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '10px' }}>Faturamento Semana</p>
+                  <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#007bff' }}>R$ {revenueStats.thisWeek.toFixed(2)}</p>
                 </div>
-                <div style={{...styles.revenueCard, borderLeftColor: '#FF9800'}}>
-                  <div style={styles.statLabel}>Expectativa Mês</div>
-                  <div style={{...styles.statValue, color: '#FF9800'}}>R$ {revenueStats.thisMonth.toFixed(2)}</div>
+                <div style={{ ...styles.revenueCard, borderLeftColor: '#28a745' }}>
+                  <p style={{ fontSize: '14px', color: '#aaa', marginBottom: '10px' }}>Faturamento Mês</p>
+                  <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#28a745' }}>R$ {revenueStats.thisMonth.toFixed(2)}</p>
                 </div>
               </div>
 
               <div style={styles.statsGrid}>
                 <div style={styles.statCard}>
-                  <div style={styles.statLabel}>Total de Barbeiros</div>
-                  <div style={styles.statValue}>{barbers.length}</div>
+                  <p style={styles.statLabel}>Total de Barbeiros</p>
+                  <p style={styles.statValue}>{barbers.length}</p>
                 </div>
                 <div style={styles.statCard}>
-                  <div style={styles.statLabel}>Total de Serviços</div>
-                  <div style={styles.statValue}>{services.length}</div>
+                  <p style={styles.statLabel}>Total de Serviços</p>
+                  <p style={styles.statValue}>{services.length}</p>
                 </div>
                 <div style={styles.statCard}>
-                  <div style={styles.statLabel}>Total de Agendamentos</div>
-                  <div style={styles.statValue}>{appointments.length}</div>
+                  <p style={styles.statLabel}>Agendamentos Pendentes</p>
+                  <p style={styles.statValue}>{appointments.filter(apt => apt.status === 'pending').length}</p>
+                </div>
+                <div style={styles.statCard}>
+                  <p style={styles.statLabel}>Agendamentos Concluídos</p>
+                  <p style={styles.statValue}>{appointments.filter(apt => apt.status === 'completed').length}</p>
                 </div>
               </div>
             </div>
@@ -488,7 +548,7 @@ export default function AdminDashboard() {
                     required
                   />
                   <input
-                    type="tel"
+                    type="text"
                     placeholder="Telefone"
                     value={barberForm.phone}
                     onChange={(e) => setBarberForm({ ...barberForm, phone: e.target.value })}
@@ -582,7 +642,8 @@ export default function AdminDashboard() {
                         </div>
                         <div style={styles.tableCell}>{barber.name}</div>
                         <div style={styles.tableCell}>{barber.phone}</div>
-                        <div style={styles.tableCell}>{barber.specialty || '-'}</div>
+                        <div style={styles.tableCell}>{barber.specialty || '-'}
+                        </div>
                         <div style={styles.tableCell}>
                           <button onClick={() => handleDeleteBarber(barber.id)} style={styles.deleteBtn}>
                             Deletar
@@ -726,279 +787,320 @@ export default function AdminDashboard() {
                     <p style={styles.configValue}>{settings.phone}</p>
                   </div>
                   <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Email</label>
+                    <p style={styles.configValue}>{settings.email}</p>
+                  </div>
+                  <div style={styles.configItem}>
                     <label style={styles.configLabel}>Endereço</label>
-                    <p style={styles.configValue}>
-                      {settings.address}, {settings.city} - {settings.state}
-                    </p>
+                    <p style={styles.configValue}>{settings.address}, {settings.city} - {settings.state}, {settings.zip_code}</p>
+                  </div>
+                  <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Horário de Funcionamento</label>
+                    <p style={styles.configValue}>{settings.opening_time} - {settings.closing_time}</p>
+                  </div>
+                  <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Intervalo de Agendamento</label>
+                    <p style={styles.configValue}>{settings.appointment_interval} minutos</p>
+                  </div>
+                  <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Instagram</label>
+                    <p style={styles.configValue}>{settings.instagram_url}</p>
+                  </div>
+                  <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Slug</label>
+                    <p style={styles.configValue}>{settings.slug}</p>
                   </div>
                   <div style={styles.configItem}>
                     <label style={styles.configLabel}>Descrição</label>
                     <p style={styles.configValue}>{settings.description}</p>
                   </div>
+                  <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Cores</label>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.primary_color, borderRadius: '4px', border: '1px solid #333' }}></div>
+                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.secondary_color, borderRadius: '4px', border: '1px solid #333' }}></div>
+                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.accent_color, borderRadius: '4px', border: '1px solid #333' }}></div>
+                    </div>
+                  </div>
+                  <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Logo</label>
+                    {settings.logo_url && <img src={settings.logo_url} alt="Logo" style={{ maxWidth: '100px', marginTop: '5px' }} />}
+                  </div>
+                  <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Banner</label>
+                    {settings.banner_url && <img src={settings.banner_url} alt="Banner" style={{ maxWidth: '200px', marginTop: '5px' }} />}
+                  </div>
                 </div>
               )}
 
               {isEditingSettings && (
-                <form onSubmit={handleSaveSettings} style={styles.form}>
-                  <h3 style={styles.formSectionTitle}>Informações Básicas</h3>
+                <div style={styles.configCard}>
+                  <form onSubmit={handleSaveSettings}>
+                    <h3 style={styles.formSectionTitle}>Informações Gerais</h3>
+                    <input
+                      type="text"
+                      placeholder="Nome da Barbearia"
+                      value={editSettings.name || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, name: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Slug da Barbearia (URL)"
+                      value={editSettings.slug || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, slug: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Telefone de Contato"
+                      value={editSettings.phone || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, phone: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <input
+                      type="email"
+                      placeholder="Email de Contato"
+                      value={editSettings.email || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, email: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <input
+                      type="text"
+                      placeholder="URL do Instagram"
+                      value={editSettings.instagramUrl || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, instagramUrl: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <textarea
+                      placeholder="Descrição da Barbearia"
+                      value={editSettings.description || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, description: e.target.value })
+                      }
+                      style={{ ...styles.input, minHeight: "80px" }}
+                    ></textarea>
 
-                  <input
-                    type="text"
-                    placeholder="Nome da Barbearia"
-                    value={editSettings.name || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, name: e.target.value })}
-                    style={styles.input}
-                  />
+                    <h3 style={styles.formSectionTitle}>Endereço</h3>
+                    <input
+                      type="text"
+                      placeholder="Endereço"
+                      value={editSettings.address || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, address: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Cidade"
+                      value={editSettings.city || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, city: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Estado (UF)"
+                      value={editSettings.state || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, state: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <input
+                      type="text"
+                      placeholder="CEP"
+                      value={editSettings.zipCode || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, zipCode: e.target.value })
+                      }
+                      style={styles.input}
+                    />
 
-                  <input
-                    type="tel"
-                    placeholder="Telefone"
-                    value={editSettings.phone || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, phone: e.target.value })}
-                    style={styles.input}
-                  />
+                    <h3 style={styles.formSectionTitle}>Horários e Agendamento</h3>
+                    <input
+                      type="text"
+                      placeholder="Horário de Abertura (Ex: 09:00)"
+                      value={editSettings.openingTime || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, openingTime: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Horário de Fechamento (Ex: 18:00)"
+                      value={editSettings.closingTime || ""}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, closingTime: e.target.value })
+                      }
+                      style={styles.input}
+                    />
+                    <input
+                      type="number"
+                      placeholder="Intervalo de Agendamento (minutos)"
+                      value={editSettings.appointmentInterval || 30}
+                      onChange={(e) =>
+                        setEditSettings({ ...editSettings, appointmentInterval: parseInt(e.target.value) })
+                      }
+                      style={styles.input}
+                    />
 
-                  <input
-                    type="tel"
-                    placeholder="WhatsApp (com DDD ex: 11999999999)"
-                    value={editSettings.whatsapp || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, whatsapp: e.target.value })}
-                    style={styles.input}
-                  />
-
-                  <input
-                    type="url"
-                    placeholder="Instagram (https://instagram.com/seu_usuario )"
-                    value={editSettings.instagram_url || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, instagram_url: e.target.value })}
-                    style={styles.input}
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Endereço"
-                    value={editSettings.address || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, address: e.target.value })}
-                    style={styles.input}
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Cidade"
-                    value={editSettings.city || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, city: e.target.value })}
-                    style={styles.input}
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Estado"
-                    value={editSettings.state || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, state: e.target.value })}
-                    style={styles.input}
-                    maxLength="2"
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="CEP"
-                    value={editSettings.zip_code || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, zip_code: e.target.value })}
-                    style={styles.input}
-                  />
-
-                  <h3 style={styles.formSectionTitle}>Horários</h3>
-
-                  <input
-                    type="time"
-                    value={editSettings.opening_time || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, opening_time: e.target.value })}
-                    style={styles.input}
-                  />
-
-                  <input
-                    type="time"
-                    value={editSettings.closing_time || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, closing_time: e.target.value })}
-                    style={styles.input}
-                  />
-
-                  <h3 style={styles.formSectionTitle}>⏰ Intervalo de Agendamento</h3>
-
-                  <div style={styles.radioGroup}>
-                    <label style={styles.radioLabel}>
-                      <input
-                        type="radio"
-                        value="15"
-                        checked={editSettings.appointment_interval === 15}
-                        onChange={(e) =>
-                          setEditSettings({
-                            ...editSettings,
-                            appointment_interval: parseInt(e.target.value)
-                          })
-                        }
-                        style={styles.radioInput}
-                      />
-                      <span>15 minutos</span>
-                    </label>
-                    <label style={styles.radioLabel}>
-                      <input
-                        type="radio"
-                        value="30"
-                        checked={editSettings.appointment_interval === 30}
-                        onChange={(e) =>
-                          setEditSettings({
-                            ...editSettings,
-                            appointment_interval: parseInt(e.target.value)
-                          })
-                        }
-                        style={styles.radioInput}
-                      />
-                      <span>30 minutos</span>
-                    </label>
-                  </div>
-
-                  <h3 style={styles.formSectionTitle}>Cores Personalizadas</h3>
-
-                  <div style={styles.colorRow}>
-                    <div style={styles.colorGroup}>
-                      <label style={styles.label}>Cor Primária</label>
-                      <input
-                        type="color"
-                        value={editSettings.primary_color || '#E50914'}
-                        onChange={(e) => setEditSettings({ ...editSettings, primary_color: e.target.value })}
-                        style={styles.colorInput}
-                      />
-                    </div>
-
-                    <div style={styles.colorGroup}>
-                      <label style={styles.label}>Cor Secundária</label>
-                      <input
-                        type="color"
-                        value={editSettings.secondary_color || '#000'}
-                        onChange={(e) => setEditSettings({ ...editSettings, secondary_color: e.target.value })}
-                        style={styles.colorInput}
-                      />
-                    </div>
-
-                    <div style={styles.colorGroup}>
-                      <label style={styles.label}>Cor Destaque</label>
-                      <input
-                        type="color"
-                        value={editSettings.accent_color || '#fff'}
-                        onChange={(e) => setEditSettings({ ...editSettings, accent_color: e.target.value })}
-                        style={styles.colorInput}
-                      />
-                    </div>
-                  </div>
-
-                  <h3 style={styles.formSectionTitle}>Fotos</h3>
-
-                  <div style={styles.uploadSection}>
-                    <div style={styles.uploadBox}>
-                      <label style={styles.uploadLabel}>Logo</label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload(e, 'logo')}
-                        style={styles.fileInput}
-                        disabled={uploadLoading}
-                      />
-                      {editSettings.logo_url && (
-                        <div style={styles.photoPreviewContainer}>
-                          <img src={editSettings.logo_url} alt="Logo" style={styles.uploadPreview} />
-                          <button
-                            type="button"
-                            onClick={() => setEditSettings({ ...editSettings, logo_url: '' })}
-                            style={styles.removePhotoBtn}
-                          >
-                            ✕ Remover
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={styles.uploadBox}>
-                      <label style={styles.uploadLabel}>Banner</label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload(e, 'banner')}
-                        style={styles.fileInput}
-                        disabled={uploadLoading}
-                      />
-                      {editSettings.banner_url && (
-                        <div style={styles.photoPreviewContainer}>
-                          <img src={editSettings.banner_url} alt="Banner" style={styles.uploadPreview} />
-                          <button
-                            type="button"
-                            onClick={() => setEditSettings({ ...editSettings, banner_url: '' })}
-                            style={styles.removePhotoBtn}
-                          >
-                            ✕ Remover
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={styles.uploadBox}>
-                      <label style={styles.uploadLabel}>Galeria</label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload(e, 'gallery')}
-                        style={styles.fileInput}
-                        disabled={uploadLoading}
-                      />
-                    </div>
-                  </div>
-
-                  {galleryPhotos.length > 0 && (
-                    <div style={styles.galleryPreview}>
-                      <h4 style={styles.galleryTitle}>Fotos da Galeria</h4>
-                      <div style={styles.galleryGrid}>
-                        {galleryPhotos.map((photo) => (
-                          <div key={photo.id} style={styles.galleryItemContainer}>
-                            <img src={photo.image_url} alt="Galeria" style={styles.galleryItemImage} />
-                            <button
-                              type="button"
-                              onClick={() => handleDeletePhoto(photo.id)}
-                              style={styles.deleteBtn}
-                            >
-                              Deletar
-                            </button>
-                          </div>
-                        ))}
+                    <h3 style={styles.formSectionTitle}>Cores da Marca</h3>
+                    <div style={styles.colorRow}>
+                      <div style={styles.colorGroup}>
+                        <label style={styles.label}>Cor Primária</label>
+                        <input
+                          type="color"
+                          value={editSettings.primaryColor || "#E50914"}
+                          onChange={(e) =>
+                            setEditSettings({ ...editSettings, primaryColor: e.target.value })
+                          }
+                          style={styles.colorInput}
+                        />
+                      </div>
+                      <div style={styles.colorGroup}>
+                        <label style={styles.label}>Cor Secundária</label>
+                        <input
+                          type="color"
+                          value={editSettings.secondaryColor || "#000000"}
+                          onChange={(e) =>
+                            setEditSettings({ ...editSettings, secondaryColor: e.target.value })
+                          }
+                          style={styles.colorInput}
+                        />
+                      </div>
+                      <div style={styles.colorGroup}>
+                        <label style={styles.label}>Cor de Destaque</label>
+                        <input
+                          type="color"
+                          value={editSettings.accentColor || "#ffffff"}
+                          onChange={(e) =>
+                            setEditSettings({ ...editSettings, accentColor: e.target.value })
+                          }
+                          style={styles.colorInput}
+                        />
                       </div>
                     </div>
-                  )}
 
-                  <h3 style={styles.formSectionTitle}>Descrição</h3>
+                    <h3 style={styles.formSectionTitle}>Imagens</h3>
+                    <div style={styles.uploadSection}>
+                      <div style={styles.uploadBox}>
+                        <label style={styles.uploadLabel}>Logo da Barbearia</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileUpload(e, "logo")}
+                          style={styles.fileInput}
+                          disabled={uploadLoading}
+                        />
+                        {editSettings.logoUrl && (
+                          <img
+                            src={editSettings.logoUrl}
+                            alt="Logo"
+                            style={styles.uploadPreview}
+                          />
+                        )}
+                      </div>
+                      <div style={styles.uploadBox}>
+                        <label style={styles.uploadLabel}>Banner da Barbearia</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileUpload(e, "banner")}
+                          style={styles.fileInput}
+                          disabled={uploadLoading}
+                        />
+                        {editSettings.bannerUrl && (
+                          <img
+                            src={editSettings.bannerUrl}
+                            alt="Banner"
+                            style={styles.uploadPreview}
+                          />
+                        )}
+                      </div>
+                    </div>
 
-                  <textarea
-                    placeholder="Descrição da Barbearia"
-                    value={editSettings.description || ''}
-                    onChange={(e) => setEditSettings({ ...editSettings, description: e.target.value })}
-                    style={{ ...styles.input, minHeight: '100px' }}
-                  />
-
-                  <button type="submit" style={styles.submitBtn} disabled={uploadLoading}>
-                    {uploadLoading ? 'Salvando...' : 'Salvar Configurações'}
-                  </button>
-                </form>
+                    <button
+                      type="submit"
+                      style={styles.submitBtn}
+                      disabled={loading || uploadLoading}
+                    >
+                      {loading ? "Salvando..." : "Salvar Configurações"}
+                    </button>
+                  </form>
+                </div>
               )}
             </div>
           )}
-        </div>
+
+          {activeTab === "gallery" && (
+            <div>
+              <h2 style={styles.sectionTitle}>Galeria de Fotos</h2>
+              <div style={styles.uploadBox}>
+                <label style={styles.uploadLabel}>Adicionar Foto à Galeria</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileUpload(e, "gallery")}
+                  style={styles.fileInput}
+                  disabled={uploadLoading}
+                />
+              </div>
+              <div style={styles.galleryPreview}>
+                <h3 style={styles.galleryTitle}>Fotos Atuais</h3>
+                {galleryPhotos.length === 0 ? (
+                  <p style={styles.emptyState}>Nenhuma foto na galeria.</p>
+                ) : (
+                  <div style={styles.galleryGrid}>
+                    {galleryPhotos.map((photo) => (
+                      <div key={photo.id} style={styles.galleryItemContainer}>
+                        <img
+                            src={photo.url || photo.image_url || photo.path} 
+  
+                          alt="Galeria"
+  style={styles.galleryItemImage}
+  onError={(e) => {
+    // Se a imagem falhar, tenta adicionar a barra inicial caso tenha vindo sem
+    if (photo.url && !photo.url.startsWith('http' ) && !photo.url.startsWith('/')) {
+       e.target.src = '/' + photo.url;
+    }
+  }}
+                          
+                      
+                        />
+                        <button
+                          onClick={() => handleDeletePhoto(photo.id)}
+                          style={styles.removePhotoBtn}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );
 }
 
 const styles = {
-  radioGroup: { display: 'flex', gap: '30px', marginTop: '10px' },
-  radioLabel: { display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px', color: '#fff' },
-  radioInput: { width: '18px', height: '18px', cursor: 'pointer', accentColor: '#E50914' },
   container: { backgroundColor: '#000', color: '#fff', minHeight: '100vh', fontFamily: 'Arial, sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', backgroundColor: '#111', borderBottom: '1px solid #222' },
   title: { fontSize: '28px', fontWeight: 'bold', color: '#E50914', margin: 0 },
@@ -1007,7 +1109,7 @@ const styles = {
   logoutBtn: { backgroundColor: '#E50914', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   notification: { padding: '15px', margin: '20px', borderRadius: '4px', color: '#000', fontWeight: 'bold' },
   main: { display: 'flex', minHeight: 'calc(100vh - 80px)' },
-  sidebar: { width: '200px', backgroundColor: '#111', borderRight: '1px solid #222', padding: '20px 0' },
+  sidebar: { width: '200px', display: typeof window !== 'undefined' && window.innerWidth < 768 ? (isSidebarOpen ? 'block' : 'none') : 'block', position: typeof window !== 'undefined' && window.innerWidth < 768 ? 'fixed' : 'relative', zIndex: 1000, height: '100%', backgroundColor: '#111', borderRight: '1px solid #222', padding: '20px 0' },
   sidebarItem: { padding: '15px 20px', cursor: 'pointer', borderLeft: '3px solid transparent', color: '#aaa', fontSize: '14px', transition: 'all 0.3s' },
   content: { flex: 1, padding: '30px', overflowY: 'auto' },
   sectionTitle: { fontSize: '24px', fontWeight: 'bold', color: '#E50914', marginBottom: '20px' },
@@ -1017,7 +1119,7 @@ const styles = {
   form: { backgroundColor: '#111', border: '1px solid #222', borderRadius: '8px', padding: '20px', marginBottom: '20px' },
   input: { width: '100%', padding: '10px', marginBottom: '10px', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '4px', color: '#fff', boxSizing: 'border-box' },
   submitBtn: { width: '100%', padding: '12px', backgroundColor: '#E50914', color: '#000', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' },
-  table: { backgroundColor: '#111', border: '1px solid #222', borderRadius: '8px', overflow: 'hidden' },
+  table: { backgroundColor: '#111', overflowX: 'auto', border: '1px solid #222', borderRadius: '8px', overflow: 'hidden' },
   tableHeader: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', padding: '15px', backgroundColor: '#1a1a1a', borderBottom: '1px solid #222', fontWeight: 'bold' },
   tableCell: { padding: '10px', fontSize: '13px' },
   tableRow: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', padding: '15px', borderBottom: '1px solid #222', alignItems: 'center' },

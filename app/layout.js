@@ -1,19 +1,17 @@
+import './globals.css'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'] })
+
 export const metadata = {
-  title: "BarberSaaS - Sistema de Agendamento",
-  description: "Sistema de agendamento para barbearias",
-};
+  title: 'Sistema de Barbearia SaaS',
+  description: 'Agendamento online para barbearias',
+}
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="pt-br">
-      <body style={{
-        margin: 0,
-        backgroundColor: "#0A0A0A",
-        color: "#fff",
-        fontFamily: "Arial, sans-serif"
-      }}>
-        {children}
-      </body>
+    <html lang="pt-BR">
+      <body className={inter.className}>{children}</body>
     </html>
-  );
+  )
 }

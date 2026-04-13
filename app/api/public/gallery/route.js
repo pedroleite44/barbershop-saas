@@ -1,34 +1,25 @@
-﻿import { initDatabase, sql } from "../../../../lib/db.js";
+﻿import { sql } from "@/lib/db";
+import { NextResponse } from "next/server";
 
-export async function GET(req) {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const tenant_id = searchParams.get("tenant_id");
+
+  if (!tenant_id) {
+    return NextResponse.json({ success: false, error: "tenant_id é obrigatório" }, { status: 400 });
+  }
+
   try {
-    await initDatabase();
-
-    const { searchParams } = new URL(req.url);
-    const tenantId = Number(searchParams.get("tenant_id") || 1);
-
-    const data = await sql`
-      SELECT
-        id,
-        tenant_id,
-        image_url,
-        COALESCE(title, '') AS title,
-        COALESCE(order_index, 0) AS order_index,
-        created_at
-      FROM tenant_gallery
-      WHERE tenant_id = ${tenantId}
-      ORDER BY order_index ASC, created_at DESC
+    const images = await sql`
+      SELECT id, image_url, title 
+      FROM tenant_gallery 
+      WHERE tenant_id = ${parseInt(tenant_id)}
+      ORDER BY created_at DESC
     `;
 
-    return Response.json({ 
-      success: true,
-      data: data || []
-    });
+    return NextResponse.json({ success: true, data: images });
   } catch (error) {
-    console.error("ERRO GET PUBLIC GALLERY:", error);
-    return Response.json({ 
-      success: false,
-      error: error.message 
-    }, { status: 500 });
+    console.error("Erro ao buscar galeria:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

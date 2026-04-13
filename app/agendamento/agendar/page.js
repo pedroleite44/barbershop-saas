@@ -1,470 +1,350 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 
-export default function AgendarPage() {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState('');
-  const [times, setTimes] = useState([]);
-  const [selectedTime, setSelectedTime] = useState('');
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
-  const [barbers, setBarbers] = useState([]);
-  const [barberId, setBarberId] = useState('');
-  const [services, setServices] = useState([]);
-  const [selectedServices, setSelectedServices] = useState([]);
-  const [message, setMessage] = useState('');
+export default function BarbershopPage() {
+  const params = useParams();
+  const slug = params.slug;
+  
+  const [settings, setSettings] = useState(null);
+  const [gallery, setGallery] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [barbers, setBarbers] = useState([]);
+  const [services, setServices] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
-  const [tenantSettings, setTenantSettings] = useState(null);
-
-  const [theme, setTheme] = useState({
-    primary: "#E50914",
-    secondary: "#0A0A0A",
-    accent: "#ffffff"
-  });
-
-  const tenantId = 1;
-
-  const totalPrice = selectedServices.reduce((sum, serviceId) => {
-    const service = services.find(s => s.id === serviceId);
-    return sum + (service ? parseFloat(service.price) : 0);
-  }, 0);
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(window.innerWidth <= 768);
     };
-
+    
     handleResize();
     window.addEventListener('resize', handleResize);
+    
+    if (slug) {
+      fetchData(slug);
+    }
+
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [slug]);
 
-  useEffect(() => {
-    async function loadPageData() {
-      try {
-        setLoading(true);
-
-        const settingsResponse = await fetch(`/api/public/settings?tenant_id=${tenantId}`);
-        const settingsData = await settingsResponse.json();
-        
-        if (settingsData && settingsData.data) {
-          const settings = settingsData.data || settingsData;
-          setTenantSettings(settings);
-          setTheme({
-            primary: settings.primary_color || "#E50914",
-            secondary: settings.secondary_color || "#0A0A0A",
-            accent: settings.accent_color || "#ffffff"
-          });
-        } else if (settingsData) {
-          setTenantSettings(settingsData);
-          setTheme({
-            primary: settingsData.primary_color || "#E50914",
-            secondary: settingsData.secondary_color || "#0A0A0A",
-            accent: settingsData.accent_color || "#ffffff"
-          });
-        }
-
-        const barbersResponse = await fetch(`/api/public/barbers?tenant_id=${tenantId}`);
-        const barbersData = await barbersResponse.json();
-        setBarbers(barbersData.data || []);
-
-        const servicesResponse = await fetch(`/api/services?tenant_id=${tenantId}`);
-        const servicesData = await servicesResponse.json();
-        setServices(servicesData.data || []);
-
-      } catch (error) {
-        console.error('Erro ao carregar dados da página:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadPageData();
-  }, []);
-
-  useEffect(() => {
-    if (selectedDate && barberId) {
-      fetch(`/api/public/available-times?tenant_id=${tenantId}&barber_id=${barberId}&date=${selectedDate}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.times) {
-            setTimes(data.times);
-          } else {
-            console.error('Erro ao buscar horários:', data.error);
-            setTimes([]);
-          }
-        });
-    }
-  }, [selectedDate, barberId]);
-
-  function toggleService(serviceId) {
-    setSelectedServices(prev => 
-      prev.includes(serviceId) 
-        ? prev.filter(id => id !== serviceId)
-        : [...prev, serviceId]
-    );
-  }
-
-  // Função para formatar a mensagem do WhatsApp
-  function formatWhatsAppMessage() {
-    const selectedBarberName = barbers.find(b => b.id == barberId)?.name || "Barbeiro";
-    const servicesList = selectedServices.map(id => {
-      const s = services.find(serv => serv.id === id);
-      return s ? `• ${s.name} (R$ ${parseFloat(s.price).toFixed(2)})` : "";
-    }).join("\n");
-
-    const [year, month, day] = selectedDate.split('-');
-    const formattedDate = `${day}/${month}/${year}`;
-
-    return `🚨 *NOVO AGENDAMENTO* 🚨\n\n` +
-           `👤 *Cliente:* ${clientName}\n` +
-           `📞 *Telefone:* ${clientPhone}\n\n` +
-           `✂️ *Serviços:*\n${servicesList}\n\n` +
-           `🧔 *Barbeiro:* ${selectedBarberName}\n` +
-           `📅 *Data:* ${formattedDate}\n` +
-           `⏰ *Hora:* ${selectedTime}\n` +
-           `💰 *Total:* R$ ${totalPrice.toFixed(2)}\n\n` +
-           `_Por favor, confirme se o horário está disponível!_`;
-  }
-
-  async function handleBookAppointment() {
-    if (!clientName || !clientPhone) {
-      setMessage('❌ Por favor, preencha nome e telefone');
-      return;
-    }
-
-    if (selectedServices.length === 0) {
-      setMessage('❌ Por favor, selecione pelo menos um serviço');
-      return;
-    }
-
-    if (!barberId) {
-      setMessage('❌ Por favor, selecione um barbeiro');
-      return;
-    }
-
-    if (!selectedDate || !selectedTime) {
-      setMessage('❌ Por favor, selecione data e horário');
-      return;
-    }
-
-    setLoading(true);
+  async function fetchData(slugParam) {
     try {
-      const res = await fetch('/api/public/book-appointment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenantId: Number(tenantId),
-          barberId: Number(barberId),
-          serviceIds: selectedServices.map(id => Number(id)),
-          totalPrice: parseFloat(totalPrice),
-          clientName,
-          clientPhone,
-          appointmentDate: selectedDate,
-          appointmentTime: selectedTime,
-        }),
-      });
-
-      if (res.ok) {
-        const result = await res.json();
-        if (result.success) {
-          setMessage("✅ Agendado com sucesso! Redirecionando para o WhatsApp...");
-          
-          // Lógica de Redirecionamento WhatsApp
-          const whatsappMessage = formatWhatsAppMessage();
-          const encodedMessage = encodeURIComponent(whatsappMessage);
-          const rawPhone = tenantSettings?.phone || "";
-          const cleanPhone = rawPhone.replace(/\D/g, "");
-          const finalPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
-
-          setTimeout(() => {
-            if (finalPhone.length > 5) {
-              window.open(`https://wa.me/${finalPhone}?text=${encodedMessage}`, '_blank' );
-            } else {
-              console.warn("Telefone da barbearia não configurado corretamente.");
-            }
-            
-            // Limpar campos
-            setClientName('');
-            setClientPhone('');
-            setSelectedTime('');
-            setSelectedDate('');
-            setBarberId('');
-            setSelectedServices([]);
-            setMessage('');
-          }, 2000);
-        } else {
-          setMessage(`❌ Erro: ${result.error}`);
-        }
-      } else {
-        setMessage('❌ Erro ao agendar');
+      // Buscar dados usando o SLUG
+      const settingsResponse = await fetch(`/api/public/settings?slug=${slugParam}`);
+      const settingsData = await settingsResponse.json();
+      
+      if (!settingsData.success) {
+        console.error('Barbearia não encontrada');
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      setMessage('❌ Erro de conexão');
+      
+      const tenantId = settingsData.data.id;
+      setSettings(settingsData.data);
+
+      // Buscar galeria
+      const galleryResponse = await fetch(`/api/public/gallery?tenant_id=${tenantId}`);
+      const galleryData = await galleryResponse.json();
+      setGallery(galleryData.data || []);
+
+      // Buscar barbeiros
+      const barbersResponse = await fetch(`/api/public/barbers?tenant_id=${tenantId}`);
+      const barbersData = await barbersResponse.json();
+      setBarbers(barbersData.data || []);
+
+      // Buscar serviços
+      const servicesResponse = await fetch(`/api/services?tenant_id=${tenantId}`);
+      const servicesData = await servicesResponse.json();
+      setServices(servicesData.data || []);
+
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error);
     } finally {
       setLoading(false);
     }
   }
 
-  function getDaysInMonth(date) {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const handleAgendar = () => {
+    if (slug) {
+      window.location.href = `/${slug}/agendamento/agendar`;
+    }
+  };
+
+  const handleConhecerMais = () => {
+    const servicesSection = document.getElementById('services');
+    if (servicesSection) {
+      servicesSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleInstagram = () => {
+    const instagramUrl = settings?.instagram_url || 'https://instagram.com';
+    window.open(instagramUrl, '_blank' );
+  };
+
+  if (loading) {
+    return <div style={styles.loading}>Carregando...</div>;
   }
 
-  function getFirstDayOfMonth(date) {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  if (!settings) {
+    return <div style={styles.loading}>Barbearia não encontrada</div>;
   }
 
-  function formatDate(day) {
-    return `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  }
+  const primaryColor = settings.primary_color || '#E50914';
+  const secondaryColor = settings.secondary_color || '#000';
+  const accentColor = settings.accent_color || '#fff';
 
-  const today = new Date();
-  today.setHours(0,0,0,0);
-
-  const days = [];
-  const daysInMonth = getDaysInMonth(currentMonth);
-  const firstDay = getFirstDayOfMonth(currentMonth);
-
-  for (let i = 0; i < firstDay; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
-
-  if (loading && !tenantSettings) {
-    return (
-      <div style={{...styles.container, background: theme.secondary, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-        <div style={{color: theme.primary, fontSize: 18}}>Carregando...</div>
-      </div>
-    );
-  }
+  const dynamicStyles = {
+    ...styles,
+    container: { ...styles.container, backgroundColor: secondaryColor },
+    header: { 
+      ...styles.header, 
+      backgroundColor: secondaryColor, 
+      borderBottomColor: primaryColor,
+      padding: isMobile ? '15px 20px' : '20px 40px',
+    },
+    logoText: { ...styles.logoText, color: primaryColor, fontSize: isMobile ? '20px' : '24px' },
+    hero: { 
+      ...styles.hero, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '120px 20px 60px' : '160px 40px 100px',
+      textAlign: isMobile ? 'center' : 'left',
+    },
+    heroTitle: {
+      ...styles.heroTitle,
+      fontSize: isMobile ? '40px' : '64px',
+    },
+    heroSubtitle: {
+      ...styles.heroSubtitle,
+      fontSize: isMobile ? '16px' : '18px',
+      margin: isMobile ? '0 auto 30px' : '0 0 40px',
+    },
+    heroButtons: {
+      ...styles.heroButtons,
+      justifyContent: isMobile ? 'center' : 'flex-start',
+    },
+    heroTitleRed: { ...styles.heroTitleRed, color: primaryColor },
+    buttonPrimary: { ...styles.buttonPrimary, backgroundColor: primaryColor, color: accentColor },
+    buttonSecondary: { ...styles.buttonSecondary, color: primaryColor, borderColor: primaryColor, backgroundColor: accentColor },
+    sectionTitle: { 
+      ...styles.sectionTitle, 
+      color: primaryColor,
+      fontSize: isMobile ? '32px' : '40px',
+      marginBottom: isMobile ? '40px' : '60px',
+    },
+    services: { 
+      ...styles.services, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '60px 20px' : '100px 40px',
+    },
+    serviceCardHighlight: { ...styles.serviceCardHighlight, borderColor: primaryColor, backgroundColor: accentColor },
+    servicePrice: { ...styles.servicePrice, color: primaryColor },
+    cutsGallery: { 
+      ...styles.cutsGallery, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '60px 20px' : '100px 40px',
+    },
+    team: { 
+      ...styles.team, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '60px 20px' : '100px 40px',
+    },
+    teamRole: { ...styles.teamRole, color: primaryColor },
+    finalCta: { 
+      ...styles.finalCta, 
+      backgroundColor: secondaryColor,
+      padding: isMobile ? '60px 20px' : '100px 40px',
+    },
+    ctaTitle: {
+      ...styles.ctaTitle,
+      fontSize: isMobile ? '32px' : '48px',
+    },
+    ctaSubtitle: {
+      ...styles.ctaSubtitle,
+      fontSize: isMobile ? '16px' : '18px',
+    },
+    ctaTitleRed: { ...styles.ctaTitleRed, color: primaryColor },
+    ctaButtonPrimary: { ...styles.ctaButtonPrimary, backgroundColor: primaryColor, color: accentColor },
+    ctaButtonSecondary: { ...styles.ctaButtonSecondary, color: primaryColor, borderColor: primaryColor, backgroundColor: accentColor },
+    footer: { ...styles.footer, backgroundColor: secondaryColor },
+  };
 
   return (
-    <div style={{...styles.container, background: theme.secondary}}>
-
-      <h1 style={{...styles.title, color: theme.primary}}>Agendar Horário</h1>
-
-      <div style={{...styles.card, borderColor: theme.primary}}>
-
-        {/* SELEÇÃO MÚLTIPLA DE SERVIÇOS */}
-        <div style={styles.servicesSection}>
-          <h3 style={{...styles.sectionTitle, color: theme.primary}}>Selecione os Serviços</h3>
-          <div style={{...styles.servicesGrid, gridTemplateColumns: isMobile ? 'repeat(auto-fill, minmax(120px, 1fr))' : 'repeat(auto-fill, minmax(150px, 1fr))'}}>
-            {services.length > 0 ? (
-              services.map((service) => (
-                <div
-                  key={service.id}
-                  onClick={() => toggleService(service.id)}
-                  style={{
-                    ...styles.serviceCard,
-                    borderColor: selectedServices.includes(service.id) ? theme.primary : '#333',
-                    backgroundColor: selectedServices.includes(service.id) ? `${theme.primary}20` : '#111',
-                    borderWidth: selectedServices.includes(service.id) ? '2px' : '1px',
-                    padding: isMobile ? '12px' : '15px',
-                  }}
-                >
-                  <div style={{fontSize: isMobile ? 20 : 24, marginBottom: 8}}>✂️</div>
-                  <div style={{fontWeight: 'bold', marginBottom: 4, fontSize: isMobile ? '13px' : '14px'}}>{service.name}</div>
-                  <div style={{fontSize: isMobile ? '10px' : '12px', color: '#aaa', marginBottom: 6}}>{service.description}</div>
-                  <div style={{color: theme.primary, fontWeight: 'bold', fontSize: isMobile ? '12px' : '14px'}}>R$ {parseFloat(service.price).toFixed(2)}</div>
-                  <div style={{fontSize: isMobile ? '9px' : '11px', color: '#777', marginTop: 4}}>{service.duration} min</div>
-                  {selectedServices.includes(service.id) && (
-                    <div style={{marginTop: 8, color: theme.primary, fontSize: isMobile ? '10px' : '12px'}}>✓ Selecionado</div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <div style={{color: '#aaa', gridColumn: '1/-1', textAlign: 'center', padding: 20}}>
-                Nenhum serviço disponível no momento
-              </div>
-            )}
-          </div>
-
-          {selectedServices.length > 0 && (
-            <div style={{...styles.priceBox, borderColor: theme.primary, backgroundColor: `${theme.primary}15`, padding: isMobile ? '12px' : '15px'}}>
-              <div style={{fontSize: isMobile ? '11px' : '12px', color: '#aaa', marginBottom: 5}}>Total dos Serviços:</div>
-              <div style={{fontSize: isMobile ? '20px' : '24px', fontWeight: 'bold', color: theme.primary}}>
-                R$ {totalPrice.toFixed(2)}
-              </div>
-              <div style={{fontSize: isMobile ? '10px' : '11px', color: '#777', marginTop: 5}}>
-                {selectedServices.length} serviço(s) selecionado(s)
-              </div>
+    <div style={dynamicStyles.container}>
+      <header style={dynamicStyles.header}>
+        <div style={styles.headerLeft}>
+          {settings.logo_url ? (
+            <img src={settings.logo_url} alt="Logo" style={{...styles.logoImage, height: isMobile ? '30px' : '40px'}} />
+          ) : (
+            <div style={dynamicStyles.logoText}>
+              {settings.name || 'BarberSaaS'}
             </div>
           )}
         </div>
+      </header>
 
-        {/* BARBEIROS EM CARDS */}
-        {selectedServices.length > 0 && (
-          <div style={styles.barberSection}>
-            <h3 style={{...styles.sectionTitle, color: theme.primary}}>Selecione um Barbeiro</h3>
-            <div style={{...styles.barberGrid, gridTemplateColumns: isMobile ? 'repeat(auto-fill, minmax(100px, 1fr))' : 'repeat(auto-fill, minmax(120px, 1fr))'}}>
-              {barbers.map((b) => (
-                <div
-                  key={b.id}
-                  onClick={() => {
-                    setBarberId(b.id);
-                    setSelectedDate('');
-                    setSelectedTime('');
-                  }}
-                  style={{
-                    ...styles.barberCard,
-                    border: barberId == b.id ? `2px solid ${theme.primary}` : "1px solid #333",
-                    padding: isMobile ? '12px' : '15px',
-                  }}
-                >
-                  <div style={{...styles.avatar, backgroundColor: theme.primary, color: theme.secondary, width: isMobile ? '40px' : '50px', height: isMobile ? '40px' : '50px', fontSize: isMobile ? '16px' : '18px'}}>
-                    {b.name.charAt(0).toUpperCase()}
-                  </div>
-
-                  <div style={{...styles.barberName, fontSize: isMobile ? '12px' : '14px'}}>{b.name}</div>
-                  {b.specialty && <div style={{fontSize: isMobile ? '9px' : '11px', color: '#aaa'}}>{b.specialty}</div>}
-
-                  {barberId == b.id && (
-                    <div style={{ color: theme.primary, fontSize: isMobile ? '10px' : '12px', marginTop: 6 }}>
-                      ✓ Selecionado
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+      <section style={dynamicStyles.hero}>
+        <div style={styles.heroContent}>
+          <h1 style={dynamicStyles.heroTitle}>
+            CORTE  
+            <span style={dynamicStyles.heroTitleRed}> PERFEITO</span>
+          </h1>
+          <p style={dynamicStyles.heroSubtitle}>
+            {settings.description || 'Qualidade, preço justo e experiência premium em cada corte.'}
+          </p>
+          <div style={dynamicStyles.heroButtons}>
+            <button style={dynamicStyles.buttonPrimary} onClick={handleAgendar}>
+              Agendar Agora →
+            </button>
+            <button style={dynamicStyles.buttonSecondary} onClick={handleConhecerMais}>
+              Conhecer Mais
+            </button>
           </div>
-        )}
+        </div>
+        <div style={{...styles.heroImage, marginTop: isMobile ? '40px' : '0'}}>
+          {settings.banner_url ? (
+            <img src={settings.banner_url} alt="Banner" style={styles.heroImageActual} />
+          ) : (
+            <div style={{...styles.heroImagePlaceholder, height: isMobile ? '300px' : '400px', backgroundColor: '#111'}}></div>
+          )}
+        </div>
+      </section>
 
-        {/* CALENDÁRIO */}
-        {barberId && selectedServices.length > 0 && (
-          <>
-            <div style={styles.calendarHeader}>
-              <button onClick={()=>setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1))} style={{...styles.navButton, backgroundColor: theme.primary, color: theme.secondary, padding: isMobile ? '8px 12px' : '10px 15px', fontSize: isMobile ? '14px' : '16px'}}>←</button>
-
-              <h3 style={{...styles.monthName, color: theme.primary, fontSize: isMobile ? '14px' : '16px'}}>
-                {currentMonth.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}
-              </h3>
-
-              <button onClick={()=>setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1))} style={{...styles.navButton, backgroundColor: theme.primary, color: theme.secondary, padding: isMobile ? '8px 12px' : '10px 15px', fontSize: isMobile ? '14px' : '16px'}}>→</button>
-            </div>
-
-            <div style={{...styles.calendar, gap: isMobile ? '3px' : '5px'}}>
-              {days.map((day,i)=>{
-                const dateStr = day ? formatDate(day) : '';
-                const dateObj = day ? new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day) : null;
-                const isPast = dateObj && dateObj < today;
-
-                return (
-                  <button
-                    key={i}
-                    disabled={!day || isPast}
-                    onClick={()=>setSelectedDate(dateStr)}
-                    style={{
-                      ...styles.day,
-                      background:selectedDate===dateStr?theme.primary:"#111",
-                      color:isPast?"#555":"#fff",
-                      opacity:isPast?0.5:1,
-                      borderColor: selectedDate===dateStr ? theme.primary : '#333',
-                      padding: isMobile ? '6px' : '10px',
-                      fontSize: isMobile ? '12px' : '14px',
-                    }}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {/* HORÁRIOS */}
-        {selectedDate && selectedServices.length > 0 && (
-          <div style={{...styles.times, gap: isMobile ? '6px' : '10px'}}>
-            {times.map(slot=>(
-              <button
-                key={slot.time}
-                onClick={()=>slot.available && setSelectedTime(slot.time)}
-                disabled={!slot.available}
-                style={{
-                  ...styles.time,
-                  background:selectedTime===slot.time?theme.primary:slot.available?"#111":"#333",
-                  color:slot.available?"#fff":"#777",
-                  borderColor: selectedTime===slot.time ? theme.primary : '#333',
-                  padding: isMobile ? '8px 10px' : '10px 12px',
-                  fontSize: isMobile ? '12px' : '14px',
+      <section id="services" style={dynamicStyles.services}>
+        <h2 style={dynamicStyles.sectionTitle}>NOSSOS SERVIÇOS</h2>
+        <div style={{...styles.servicesGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))'}}>
+          {services.length > 0 ? (
+            services.map((service, index) => (
+              <div 
+                key={service.id} 
+                style={{ 
+                  ...styles.serviceCard, 
+                  padding: isMobile ? '30px 20px' : '40px',
+                  ...(index === 2 ? dynamicStyles.serviceCardHighlight : {})
                 }}
               >
-                {slot.time}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* DADOS */}
-        {selectedTime && selectedServices.length > 0 && (
-          <>
-            <div style={{...styles.resumoBox, borderColor: theme.primary, padding: isMobile ? '12px' : '15px'}}>
-              <div style={{fontSize: isMobile ? '11px' : '12px', color: '#aaa', marginBottom: 8}}>Resumo do Agendamento:</div>
-              
-              <div style={{marginBottom: 8}}>
-                {selectedServices.map(serviceId => {
-                  const service = services.find(s => s.id === serviceId);
-                  return (
-                    <div key={serviceId} style={{color: theme.primary, fontWeight: 'bold', marginBottom: 2, fontSize: isMobile ? '12px' : '14px'}}>
-                      ✂️ {service?.name} - R$ {parseFloat(service?.price || 0).toFixed(2)}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div style={{borderTop: `1px solid #333`, paddingTop: 8, marginBottom: 8}}>
-                <div style={{color: theme.primary, fontWeight: 'bold', fontSize: isMobile ? '13px' : '14px'}}>
-                  Total: R$ {totalPrice.toFixed(2)}
+                <div style={styles.serviceIcon}>{service.emoji || '✂️'}</div>
+                <h3 style={{...styles.serviceName, color: index === 2 ? '#000' : '#fff'}}>{service.name}</h3>
+                <p style={{...styles.serviceDesc, color: index === 2 ? '#333' : '#aaa'}}>{service.description}</p>
+                <div style={{...dynamicStyles.servicePrice, color: index === 2 ? primaryColor : primaryColor}}>
+                  R$ {parseFloat(service.price).toFixed(2)}
                 </div>
               </div>
-
-              <div style={{fontSize: isMobile ? '11px' : '12px', color: '#fff'}}>
-                {barbers.find(b => b.id == barberId)?.name} • {selectedDate.split('-').reverse().join('/')} às {selectedTime}
-              </div>
+            ))
+          ) : (
+            <div style={styles.serviceCard}>
+              <p style={styles.serviceDesc}>Nenhum serviço cadastrado.</p>
             </div>
+          )}
+        </div>
+      </section>
 
-            <input placeholder="Nome" value={clientName} onChange={e=>setClientName(e.target.value)} style={{...styles.input, borderColor: '#333', padding: isMobile ? '10px' : '12px', fontSize: isMobile ? '14px' : '16px'}}/>
-            <input placeholder="Telefone" value={clientPhone} onChange={e=>setClientPhone(e.target.value)} style={{...styles.input, borderColor: '#333', padding: isMobile ? '10px' : '12px', fontSize: isMobile ? '14px' : '16px'}}/>
+      {gallery.length > 0 && (
+        <section style={dynamicStyles.cutsGallery}>
+          <h2 style={dynamicStyles.sectionTitle}>NOSSOS CORTES</h2>
+          <div style={{...styles.cutsGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(250px, 1fr))'}}>
+            {gallery.map((photo) => (
+              <div key={photo.id} style={{...styles.cutsItem, height: isMobile ? '250px' : '300px'}}>
+                <img src={photo.image_url} alt="Corte" style={styles.cutsImage} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-            <button 
-              style={{...styles.button, background: theme.primary, color: theme.secondary, padding: isMobile ? '10px' : '12px', fontSize: isMobile ? '14px' : '16px', opacity: loading ? 0.7 : 1}} 
-              onClick={handleBookAppointment}
-              disabled={loading}
-            >
-              {loading ? "Processando..." : "Confirmar e Enviar via WhatsApp"}
-            </button>
-          </>
-        )}
+      {barbers.length > 0 && (
+        <section style={dynamicStyles.team}>
+          <h2 style={dynamicStyles.sectionTitle}>NOSSA EQUIPE</h2>
+          <div style={{...styles.teamMembers, gap: isMobile ? '30px' : '40px'}}>
+            {barbers.map((barber) => (
+              <div key={barber.id} style={{...styles.teamMember, width: isMobile ? '100%' : '280px'}}>
+                <div style={{...styles.teamPhoto, width: isMobile ? '150px' : '200px', height: isMobile ? '150px' : '200px'}}>
+                  {barber.photo_url ? (
+                    <img src={barber.photo_url} alt={barber.name} style={styles.teamPhotoImage} />
+                  ) : (
+                    <div style={{...styles.teamPhotoPlaceholder, width: '100%', height: '100%'}}></div>
+                  )}
+                </div>
+                <h3 style={styles.teamName}>{barber.name}</h3>
+                <p style={dynamicStyles.teamRole}>{barber.specialty || 'Barbeiro'}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-        {message && <div style={{...styles.message, color: message.includes('✅') ? '#4CAF50' : '#FF6B6B', fontSize: isMobile ? '12px' : '14px', padding: isMobile ? '10px' : '12px'}}>{message}</div>}
+      <section style={dynamicStyles.finalCta}>
+        <h2 style={dynamicStyles.ctaTitle}>
+          PRONTO PARA SEU
+            
 
-      </div>
+          <span style={dynamicStyles.ctaTitleRed}>MELHOR CORTE?</span>
+        </h2>
+        <div style={styles.ctaButtons}>
+          <button style={dynamicStyles.ctaButtonPrimary} onClick={handleAgendar}>
+            Agendar Agora
+          </button>
+          <button style={dynamicStyles.ctaButtonSecondary} onClick={handleInstagram}>
+            Instagram
+          </button>
+        </div>
+      </section>
+
+      <footer style={dynamicStyles.footer}>
+        <p style={styles.footerText}>© 2026 {settings.name}.</p>
+      </footer>
     </div>
   );
 }
 
 const styles = {
-  container:{padding: '15px', minHeight:'100vh'},
-  card:{maxWidth:800, margin:'0 auto', padding: '20px', background:'#111', border:'1px solid', borderRadius:10},
-  title: { fontSize: '24px', marginBottom: '20px', textAlign: 'center' },
-  sectionTitle: { marginBottom: 15, fontSize: '16px' },
-  servicesSection:{marginBottom:20},
-  servicesGrid:{ display:"grid", gap:12, marginBottom:20 },
-  serviceCard:{ padding:15, borderRadius:8, cursor:"pointer", textAlign:"center", border:'1px solid', transition:'all 0.3s' },
-  priceBox:{ borderRadius:8, border:'2px solid', textAlign:'center', marginBottom:20 },
-  barberSection:{marginBottom:20},
-  barberGrid:{ display:"grid", gap:12, marginBottom:20 },
-  barberCard:{ borderRadius:8, cursor:"pointer", textAlign:"center", border:'1px solid #333' },
-  avatar:{ borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 8px", fontWeight:'bold' },
-  barberName:{fontWeight:"bold", marginBottom: 4},
-  input:{width:'100%', marginBottom:10, background:'#000', color:'#fff', border:'1px solid', borderRadius:4, boxSizing: 'border-box'},
-  calendarHeader:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:15},
-  navButton:{border:'none', cursor:'pointer', borderRadius:4, fontWeight:'bold'},
-  monthName:{textTransform:'capitalize', margin:0, flex: 1, textAlign: 'center'},
-  calendar:{display:'grid', gridTemplateColumns:'repeat(7,1fr)', marginBottom:20},
-  day:{border:'1px solid', borderRadius:4, background:'#111', color:'#fff', cursor:'pointer', fontWeight: '500'},
-  times:{display:'flex', flexWrap:'wrap', marginBottom:20},
-  time:{border:'1px solid', borderRadius:4, background:'#111', color:'#fff', cursor:'pointer'},
-  resumoBox: { marginBottom: 20, backgroundColor: '#1a1a1a', borderRadius: 8, borderLeft: '4px solid' },
-  button:{padding:12, border:'none', fontWeight:'bold', borderRadius:4, cursor:'pointer', width:'100%'},
-  message:{marginTop:10, borderRadius:4, textAlign:'center', fontWeight:'bold'}
+  loading: { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#000', color: '#fff', fontSize: '18px' },
+  container: { width: '100%', margin: 0, padding: 0, backgroundColor: '#000', color: '#fff', fontFamily: 'Arial, sans-serif' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#000', borderBottom: '2px solid #E50914', padding: '20px 40px', position: 'sticky', top: 0, zIndex: 100 },
+  headerLeft: { display: 'flex', alignItems: 'center' },
+  logoImage: { height: '40px', objectFit: 'contain' },
+  logoText: { fontSize: '24px', fontWeight: 'bold', color: '#E50914' },
+  hero: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#000', padding: '160px 40px 100px', gap: '60px' },
+  heroContent: { flex: 1 },
+  heroTitle: { fontSize: '64px', fontWeight: 'bold', margin: '0 0 30px 0', lineHeight: '1.2', color: '#fff' },
+  heroTitleRed: { color: '#E50914' },
+  heroSubtitle: { fontSize: '18px', color: '#aaa', margin: '0 0 40px 0', lineHeight: '1.6' },
+  heroButtons: { display: 'flex', gap: '20px', justifyContent: 'flex-start' },
+  buttonPrimary: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '15px 40px', fontSize: '16px', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', transition: '0.3s' },
+  buttonSecondary: { backgroundColor: '#fff', color: '#E50914', border: '2px solid #E50914', padding: '15px 40px', fontSize: '16px', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', transition: '0.3s' },
+  heroImage: { flex: 1 },
+  heroImageActual: { width: '100%', height: 'auto', borderRadius: '10px', objectFit: 'cover' },
+  heroImagePlaceholder: { width: '100%', height: '400px', backgroundColor: '#111', borderRadius: '10px' },
+  services: { backgroundColor: '#000', padding: '100px 40px', textAlign: 'center' },
+  sectionTitle: { fontSize: '40px', fontWeight: 'bold', color: '#E50914', marginBottom: '60px', textAlign: 'center' },
+  servicesGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '40px' },
+  serviceCard: { backgroundColor: '#111', padding: '40px', borderRadius: '10px', border: '1px solid #222', textAlign: 'center', transition: '0.3s' },
+  serviceCardHighlight: { borderColor: '#E50914', backgroundColor: '#fff' },
+  serviceIcon: { fontSize: '48px', marginBottom: '20px' },
+  serviceName: { fontSize: '20px', fontWeight: 'bold', color: '#fff', margin: '0 0 15px 0' },
+  serviceDesc: { fontSize: '14px', color: '#aaa', margin: '0 0 20px 0', lineHeight: '1.6' },
+  servicePrice: { fontSize: '24px', fontWeight: 'bold', color: '#E50914' },
+  cutsGallery: { backgroundColor: '#000', padding: '100px 40px', textAlign: 'center' },
+  cutsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '30px' },
+  cutsItem: { position: 'relative', overflow: 'hidden', borderRadius: '10px', height: '300px' },
+  cutsImage: { width: '100%', height: '100%', objectFit: 'cover', transition: '0.3s' },
+  team: { backgroundColor: '#000', padding: '100px 40px', textAlign: 'center' },
+  teamMembers: { display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '40px' },
+  teamMember: { textAlign: 'center', width: '280px' },
+  teamPhoto: { width: '200px', height: '200px', borderRadius: '50%', overflow: 'hidden', margin: '0 auto 20px', backgroundColor: '#111' },
+  teamPhotoImage: { width: '100%', height: '100%', objectFit: 'cover' },
+  teamPhotoPlaceholder: { backgroundColor: '#222' },
+  teamName: { fontSize: '20px', fontWeight: 'bold', color: '#fff', margin: '0 0 10px 0' },
+  teamRole: { fontSize: '14px', color: '#E50914' },
+  finalCta: { backgroundColor: '#000', padding: '100px 40px', textAlign: 'center' },
+  ctaTitle: { fontSize: '48px', fontWeight: 'bold', color: '#fff', marginBottom: '20px', lineHeight: '1.2' },
+  ctaTitleRed: { color: '#E50914' },
+  ctaSubtitle: { fontSize: '18px', color: '#aaa', marginBottom: '40px' },
+  ctaButtons: { display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' },
+  ctaButtonPrimary: { backgroundColor: '#E50914', color: '#fff', border: 'none', padding: '15px 40px', fontSize: '16px', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', transition: '0.3s' },
+  ctaButtonSecondary: { backgroundColor: '#fff', color: '#E50914', border: '2px solid #E50914', padding: '15px 40px', fontSize: '16px', fontWeight: 'bold', borderRadius: '5px', cursor: 'pointer', transition: '0.3s' },
+  footer: { backgroundColor: '#000', padding: '40px', textAlign: 'center', borderTop: '1px solid #222' },
+  footerText: { fontSize: '14px', color: '#666', margin: 0 },
 };

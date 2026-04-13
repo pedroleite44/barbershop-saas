@@ -1,58 +1,48 @@
-import { initDatabase, sql } from "../../../../lib/db.js";
+import { sql } from "@/lib/db";
+import { NextResponse } from "next/server";
 
-export async function GET(req) {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const slug = searchParams.get("slug");
+  const tenant_id = searchParams.get("tenant_id");
+
   try {
-    await initDatabase();
+    let result;
     
-    const { searchParams } = new URL(req.url);
-    const tenantId = searchParams.get("tenant_id");
-
-    if (!tenantId) {
-      return Response.json({ 
-        success: false,
-        error: "Tenant ID é obrigatório" 
-      }, { status: 400 });
+    if (slug) {
+      result = await sql`
+        SELECT *, tenant_id as id FROM tenant_settings 
+        WHERE slug = ${slug}
+        LIMIT 1
+      `;
+    } else if (tenant_id) {
+      result = await sql`
+        SELECT *, tenant_id as id FROM tenant_settings 
+        WHERE tenant_id = ${parseInt(tenant_id)}
+        LIMIT 1
+      `;
+    } else {
+      return NextResponse.json({ success: false, error: "Identificador não fornecido" }, { status: 400 });
     }
 
-    const settings = await sql`
-      SELECT * FROM tenant_settings
-      WHERE tenant_id = ${parseInt(tenantId)}
-      LIMIT 1
-    `;
-
-    if (settings.length === 0) {
-      // Retornar valores padrão se não encontrar
-      return Response.json({
-        success: true,
-        data: {
-          tenant_id: parseInt(tenantId),
-          name: "Barbearia",
-          phone: "(00) 00000-0000",
-          address: "Rua Principal, 123",
-          city: "São Paulo",
-          state: "SP",
-          zip_code: "00000-000",
-          opening_time: "09:00",
-          closing_time: "19:00",
-          description: "Barbearia profissional",
-          primary_color: "#E50914",
-          secondary_color: "#000000",
-          accent_color: "#FFFFFF",
-          logo_url: "",
-          banner_url: ""
-        }
-      });
+    if (!result || result.length === 0) {
+      return NextResponse.json({ success: false, error: "Barbearia não encontrada" }, { status: 404 });
     }
 
-    return Response.json({
-      success: true,
-      data: settings[0]
+    return NextResponse.json({ 
+      success: true, 
+      data: result[0] 
+    }, {
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      }
     });
   } catch (error) {
-    console.error("Erro ao buscar configurações públicas:", error);
-    return Response.json({ 
-      success: false,
-      error: error.message 
-    }, { status: 500 });
+    console.error("Erro na API pública:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+}
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { status: 200 });
 }
