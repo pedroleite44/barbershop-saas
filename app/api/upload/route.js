@@ -1,7 +1,8 @@
-﻿import fs from "fs";
-import path from "path";
+﻿import { put, del } from "@vercel/blob";
 import { initDatabase, sql } from "../../../lib/db.js";
 import { requireAuth } from "../../../lib/auth.js";
+
+export const runtime = 'edge'; // Opcional: Melhora o desempenho na Vercel
 
 export async function POST(req) {
   try {
@@ -17,18 +18,13 @@ export async function POST(req) {
       return Response.json({ error: "Arquivo não fornecido" }, { status: 400 });
     }
 
-    // Criar diretório de uploads específico para o tenant
-    const uploadsDir = path.join(process.cwd(), "public", "uploads", String(auth.tenant_id));
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
+    // ✅ NOVO: Upload para o Vercel Blob em vez do disco local
+    const filename = `${auth.tenant_id}/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+    const blob = await put(filename, file, {
+      access: 'public',
+    });
 
-    const filename = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
-    const filepath = path.join(uploadsDir, filename);
-    const buffer = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(filepath, buffer);
-
-    const fileUrl = `/uploads/${auth.tenant_id}/${filename}`;
+    const fileUrl = blob.url;
 
     // 1. SALVAR NA GALERIA
     if (type === "gallery") {
@@ -100,7 +96,16 @@ export async function DELETE(req) {
       return Response.json({ error: "ID é obrigatório" }, { status: 400 });
     }
 
-    // Opcional: Você pode querer deletar o arquivo físico do servidor aqui também
+    // ✅ Opcional: Deletar o arquivo do Vercel Blob também
+    const photo = await sql`SELECT image_url FROM tenant_gallery WHERE id = ${id} AND tenant_id = ${auth.tenant_id}`;
+    if (photo.length > 0 && photo[0].image_url.includes('public.blob.vercel-storage.com')) {
+      try {
+        await del(photo[0].image_url);
+      } catch (e) {
+        console.error("Erro ao deletar blob:", e);
+      }
+    }
+
     await sql`
       DELETE FROM tenant_gallery
       WHERE id = ${id} AND tenant_id = ${auth.tenant_id}
