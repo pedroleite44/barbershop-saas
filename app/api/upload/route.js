@@ -2,7 +2,9 @@
 import { initDatabase, sql } from "../../../lib/db.js";
 import { requireAuth } from "../../../lib/auth.js";
 
-export const runtime = 'edge'; // Opcional: Melhora o desempenho na Vercel
+// ✅ REMOVIDO: export const runtime = 'edge'; 
+// Isso estava causando o erro de 'Module not found: Can't resolve stream' 
+// pois o Edge Runtime não suporta bibliotecas que usam o Node.js interno (como jsonwebtoken).
 
 export async function POST(req) {
   try {
@@ -18,7 +20,7 @@ export async function POST(req) {
       return Response.json({ error: "Arquivo não fornecido" }, { status: 400 });
     }
 
-    // ✅ NOVO: Upload para o Vercel Blob em vez do disco local
+    // Upload para o Vercel Blob
     const filename = `${auth.tenant_id}/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
     const blob = await put(filename, file, {
       access: 'public',
@@ -96,7 +98,7 @@ export async function DELETE(req) {
       return Response.json({ error: "ID é obrigatório" }, { status: 400 });
     }
 
-    // ✅ Opcional: Deletar o arquivo do Vercel Blob também
+    // Deletar o arquivo do Vercel Blob também
     const photo = await sql`SELECT image_url FROM tenant_gallery WHERE id = ${id} AND tenant_id = ${auth.tenant_id}`;
     if (photo.length > 0 && photo[0].image_url.includes('public.blob.vercel-storage.com')) {
       try {
