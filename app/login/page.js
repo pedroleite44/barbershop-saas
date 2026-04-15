@@ -86,9 +86,9 @@ export default function LoginPage() {
         </form>
 
         <div style={styles.testAccounts}>
-          <p style={styles.testTitle}>📝 Contas de Teste:</p>
-          <p style={styles.testAccount}>Admin: admin@blackzone.com / admin123</p>
-          <p style={styles.testAccount}>Barbeiro: carioca@blackzone.com / barber123</p>
+          <p style={styles.testTitle}></p>
+          <p style={styles.testAccount}></p>
+          <p style={styles.testAccount}></p>
         </div>
       </div>
     </div>
