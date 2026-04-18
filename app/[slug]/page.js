@@ -23,11 +23,9 @@ export default function LandingPage() {
     const pathParts = window.location.pathname.split('/');
     const slugFromUrl = pathParts[1];
     
-    // Lógica de busca robusta do Arquivo 1
     if (slugFromUrl && slugFromUrl !== 'dashboard' && slugFromUrl !== 'superadmin') {
       fetchDataBySlug(slugFromUrl);
     } else {
-      // Fallback para um tenant_id padrão se não houver slug
       fetchData(1); 
     }
 
@@ -52,7 +50,6 @@ export default function LandingPage() {
         setTenantId(id);
         setSettings(settingsData.data);
         
-        // Carregamento paralelo eficiente do Arquivo 1
         const [galleryRes, barbersRes, servicesRes] = await Promise.all([
           fetch(`/api/public/gallery?tenant_id=${id}`, { cache: 'no-store' }),
           fetch(`/api/public/barbers?tenant_id=${id}`, { cache: 'no-store' }),
@@ -158,12 +155,10 @@ export default function LandingPage() {
     return <div style={styles.loading}>{error || 'Erro ao carregar configurações'}</div>;
   }
 
-  // Definições de cores dinâmicas do Arquivo 2
   const primaryColor = settings.primary_color || '#E50914';
   const secondaryColor = settings.secondary_color || '#000';
   const accentColor = settings.accent_color || '#fff';
 
-  // Estilos dinâmicos e responsivos do Arquivo 2
   const dynamicStyles = {
     ...styles,
     container: { ...styles.container, backgroundColor: secondaryColor },
@@ -242,7 +237,6 @@ export default function LandingPage() {
 
   return (
     <div style={dynamicStyles.container}>
-      {/* Header */}
       <header style={dynamicStyles.header}>
         <div style={styles.headerLeft}>
           {settings.logo_url ? (
@@ -256,7 +250,6 @@ export default function LandingPage() {
         <div style={styles.placeholder} />
       </header>
 
-      {/* Hero Section */}
       <section style={dynamicStyles.hero}>
         <div style={styles.heroContent}>
           <h1 style={dynamicStyles.heroTitle}>
@@ -284,7 +277,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Services Section */}
       <section id="services" style={dynamicStyles.services}>
         <h2 style={dynamicStyles.sectionTitle}>NOSSOS SERVIÇOS</h2>
         <div style={{...styles.servicesGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))'}}>
@@ -293,8 +285,7 @@ export default function LandingPage() {
               <div 
                 key={service.id} 
                 style={{ 
-                  ...styles.serviceCard, 
-                  padding: isMobile ? '30px 20px' : '40px',
+                  ...styles.serviceCard,
                   ...(index === 2 ? dynamicStyles.serviceCardHighlight : {})
                 }}
               >
@@ -314,14 +305,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Gallery Section */}
       {gallery.length > 0 && (
         <section id="gallery" style={dynamicStyles.cutsGallery}>
           <h2 style={dynamicStyles.sectionTitle}>NOSSOS CORTES</h2>
           <p style={styles.cutsSubtitle}>Confira os melhores trabalhos da nossa equipe</p>
           <div style={{...styles.cutsGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(250px, 1fr))'}}>
             {gallery.map((photo) => (
-              <div key={photo.id} style={{...styles.cutsItem, height: isMobile ? '250px' : '300px'}}>
+              <div key={photo.id} style={{...styles.cutsItem, height: isMobile ? '350px' : '300px'}}>
                 <img 
                   src={photo.url || photo.image_url || photo.path} 
                   alt={photo.title || 'Corte'} 
@@ -339,7 +329,6 @@ export default function LandingPage() {
         </section>
       )}
 
-      {/* Team Section */}
       {barbers.length > 0 && (
         <section id="team" style={dynamicStyles.team}>
           <h2 style={dynamicStyles.sectionTitle}>NOSSA EQUIPE</h2>
@@ -366,7 +355,6 @@ export default function LandingPage() {
         </section>
       )}
 
-      {/* Contact/CTA Section */}
       <section id="contact" style={dynamicStyles.finalCta}>
         <h2 style={dynamicStyles.ctaTitle}>
           AGENDE SEU 
@@ -391,7 +379,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer style={dynamicStyles.footer}>
         <p>&copy; {new Date().getFullYear()} {settings.name || 'BarberSaaS'}. Todos os direitos reservados.</p>
       </footer>
@@ -417,7 +404,7 @@ const styles = {
   sectionTitle: { fontWeight: 'bold', textAlign: 'center' },
   services: {},
   servicesGrid: { display: 'grid', gap: '30px' },
-  serviceCard: { backgroundColor: '#000', borderRadius: '10px', textAlign: 'center', border: '1px solid #333', transition: 'transform 0.3s ease' },
+  serviceCard: { backgroundColor: '#000', borderRadius: '10px', textAlign: 'center', border: '1px solid #333', transition: 'transform 0.3s ease', padding: '30px' },
   serviceCardHighlight: { border: 'none' },
   serviceIcon: { fontSize: '48px', marginBottom: '20px' },
   serviceName: { fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' },
@@ -426,8 +413,8 @@ const styles = {
   cutsGallery: { textAlign: 'center' },
   cutsSubtitle: { color: '#aaa', marginBottom: '40px' },
   cutsGrid: { display: 'grid', gap: '20px' },
-  cutsItem: { position: 'relative', borderRadius: '10px', overflow: 'hidden' },
-  cutsImage: { width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s' },
+  cutsItem: { position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '1px solid #222' },
+  cutsImage: { width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#050505', transition: 'transform 0.5s' },
   cutsTitle: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '20px', background: 'linear-gradient(transparent, rgba(0,0,0,0.8))', color: '#fff', fontWeight: 'bold' },
   team: { textAlign: 'center' },
   teamSubtitle: { color: '#aaa' },
