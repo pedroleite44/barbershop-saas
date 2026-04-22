@@ -3,6 +3,105 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+// --- COMPONENTE DE REENGAJAMENTO ATUALIZADO PARA WHATSAPP WEB ---
+function ReengagementTab({ tenantId, apiCall, showNotification, isMobile }) {
+  const [inactiveClients, setInactiveClients] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [messageTemplate, setMessageTemplate] = useState('Olá {nome}, faz um tempo que não nos vemos na barbearia! Que tal agendar um novo horário para dar aquele tapa no visual? ✂️');
+
+  useEffect(() => {
+    if (tenantId) fetchInactiveClients();
+  }, [tenantId]);
+
+  async function fetchInactiveClients() {
+    try {
+      setLoading(true);
+      const data = await apiCall(`/api/admin/reengagement?tenant_id=${tenantId}&days=15`);
+      if (data.success) {
+        setInactiveClients(data.data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar clientes inativos:', error);
+      showNotification('Erro ao buscar clientes inativos', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // NOVA FUNÇÃO: Abre o WhatsApp Web para o cliente
+  function openWhatsApp(client) {
+    const cleanPhone = client.phone.replace(/\D/g, ''); // Remove parênteses, espaços e traços
+    const message = messageTemplate.replace('{nome}', client.client_name);
+    const encodedMessage = encodeURIComponent(message);
+    const url = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+    window.open(url, '_blank');
+  }
+
+  const localStyles = {
+    configCard: { backgroundColor: '#111', border: '1px solid #222', borderRadius: '8px', padding: '20px', marginBottom: '20px' },
+    formSectionTitle: { fontSize: '16px', fontWeight: 'bold', color: '#E50914', marginBottom: '10px' },
+    description: { fontSize: '13px', color: '#aaa', marginBottom: '10px' },
+    textarea: { width: '100%', padding: '12px', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '4px', color: '#fff', fontSize: '14px', resize: 'vertical', fontFamily: 'inherit' },
+    table: { backgroundColor: '#111', border: '1px solid #222', borderRadius: '8px', overflow: 'hidden' },
+    tableHeader: { display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '2fr 1.5fr 1.5fr 1fr', padding: '15px', backgroundColor: '#1a1a1a', borderBottom: '1px solid #222', fontWeight: 'bold' },
+    tableCell: { padding: '10px', fontSize: '13px' },
+    tableRow: { display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '2fr 1.5fr 1.5fr 1fr', padding: '15px', borderBottom: '1px solid #222', alignItems: 'center' },
+    emptyState: { padding: '30px', textAlign: 'center', color: '#aaa' },
+    actionBtn: { backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#E50914', marginBottom: '20px' }}>Reengajamento de Clientes (15+ dias)</h2>
+      
+      <div style={localStyles.configCard}>
+        <h3 style={localStyles.formSectionTitle}>Template da Mensagem</h3>
+        <p style={localStyles.description}>A mensagem será preparada e você só precisará clicar em enviar no WhatsApp. Use <strong>{'{nome}'}</strong> para o nome do cliente.</p>
+        <textarea 
+          style={localStyles.textarea}
+          value={messageTemplate}
+          onChange={(e) => setMessageTemplate(e.target.value)}
+          rows={3}
+        />
+      </div>
+
+      <div style={localStyles.table}>
+        <div style={localStyles.tableHeader}>
+          <div style={localStyles.tableCell}>Cliente</div>
+          {!isMobile && <div style={localStyles.tableCell}>Último Agendamento</div>}
+          <div style={localStyles.tableCell}>Dias Inativo</div>
+          <div style={localStyles.tableCell}>Ação</div>
+        </div>
+        {loading ? (
+          <div style={localStyles.emptyState}>Carregando clientes...</div>
+        ) : inactiveClients.length === 0 ? (
+          <div style={localStyles.emptyState}>Nenhum cliente inativo há mais de 15 dias.</div>
+        ) : (
+          inactiveClients.map((client, index) => (
+            <div key={index} style={localStyles.tableRow}>
+              <div style={localStyles.tableCell}>
+                <strong>{client.client_name}</strong>  
+                <br />
+                <span style={{fontSize: '11px', color: '#aaa'}}>{client.phone}</span>
+              </div>
+              {!isMobile && <div style={localStyles.tableCell}>{new Date(client.last_date).toLocaleDateString('pt-BR')}</div>}
+              <div style={localStyles.tableCell}>{Math.floor(client.days_inactive)} dias</div>
+              <div style={localStyles.tableCell}>
+                <button 
+                  style={localStyles.actionBtn}
+                  onClick={() => openWhatsApp(client)}
+                >
+                  Enviar Zap
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -20,9 +119,9 @@ export default function AdminDashboard() {
   const [notification, setNotification] = useState({ message: '', type: '', visible: false });
   
   const [showBarberForm, setShowBarberForm] = useState(false);
-  const [isEditingBarber, setIsEditingBarber] = useState(false); // ✅ ADICIONADO
+  const [isEditingBarber, setIsEditingBarber] = useState(false);
   const [showServiceForm, setShowServiceForm] = useState(false);
-  const [barberForm, setBarberForm] = useState({ id: null, name: '', phone: '', email: '', password: '', specialty: '', photo_url: '', commission_percentage: 0 }); // ✅ ATUALIZADO
+  const [barberForm, setBarberForm] = useState({ id: null, name: '', phone: '', email: '', password: '', specialty: '', photo_url: '', commission_percentage: 0 });
   const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: 0, duration: 0 });
   
   const [isEditingSettings, setIsEditingSettings] = useState(false);
@@ -30,7 +129,6 @@ export default function AdminDashboard() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [galleryPhotos, setGalleryPhotos] = useState([]);
 
-  // ✅ NOVO: Estado para detectar mobile e ajustar layout
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -127,7 +225,6 @@ export default function AdminDashboard() {
   async function fetchBarbers() {
     try {
       const tenantId = localStorage.getItem('tenant_id') || 1;
-      // ✅ ATUALIZADO: Agora a rota /api/barbers retorna e-mails
       const data = await apiCall(`/api/barbers?tenant_id=${tenantId}`);
       setBarbers(data.data || []);
     } catch (error) {
@@ -165,7 +262,6 @@ export default function AdminDashboard() {
       const data = await apiCall('/api/public/settings?tenant_id=' + tenantId);
       if (data.success) {
         setSettings(data.data || {});
-        // Mapeia snake_case do backend para camelCase do frontend para editSettings
         setEditSettings({
           ...data.data,
           logoUrl: data.data.logo_url,
@@ -193,7 +289,6 @@ export default function AdminDashboard() {
 
   async function handleCreateBarber(e) {
     e.preventDefault();
-    // ✅ ATUALIZADO: Senha opcional na edição
     if (!barberForm.name || !barberForm.phone || !barberForm.email || (!isEditingBarber && !barberForm.password)) {
       showNotification('Preencha todos os campos obrigatórios', 'error');
       return;
@@ -208,7 +303,6 @@ export default function AdminDashboard() {
       const tenantId = localStorage.getItem('tenant_id') || 1;
       
       if (isEditingBarber) {
-        // ✅ NOVO: Chamada para atualização
         await apiCall('/api/barbers', {
           method: 'PUT',
           body: JSON.stringify(barberForm),
@@ -237,7 +331,6 @@ export default function AdminDashboard() {
     }
   }
 
-  // ✅ NOVO: Função para carregar edição
   function handleEditBarber(barber) {
     setBarberForm({
       id: barber.id,
@@ -386,8 +479,8 @@ export default function AdminDashboard() {
       const token = localStorage.getItem('token');
       const tenantId = localStorage.getItem('tenant_id') || 1;
       
-      if (!token || !tenantId) {
-        showNotification('Token ou Tenant ID não encontrado', 'error');
+      if (!token) {
+        showNotification('Token não encontrado', 'error');
         return;
       }
 
@@ -436,22 +529,16 @@ export default function AdminDashboard() {
     }
   }
 
+  if (!user) {
+    return <div style={styles.loading}>Carregando...</div>;
+  }
+
   return (
     <div style={styles.container}>
-      <div style={{...styles.header, padding: isMobile ? '15px' : '20px'}}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          {isMobile && (
-            <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-              style={{ background: 'none', border: 'none', color: '#E50914', fontSize: '24px', cursor: 'pointer' }}
-            >
-              ☰
-            </button>
-          )}
-          <h1 style={{...styles.title, fontSize: isMobile ? '20px' : '28px'}}>Admin Dashboard - {tenantName}</h1>
-        </div>
+      <div style={{...styles.header, padding: isMobile ? '15px' : '20px', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '15px' : '0'}}>
+        <h1 style={{...styles.title, fontSize: isMobile ? '20px' : '28px'}}>Admin Dashboard - {tenantName}</h1>
         <div style={styles.headerRight}>
-          {!isMobile && user && <span style={styles.user}>Olá, {user.name}</span>}
+          {user && <span style={styles.user}>Olá, {user.name}</span>}
           <button onClick={() => {
             localStorage.clear();
             router.push('/login');
@@ -466,96 +553,110 @@ export default function AdminDashboard() {
           color: notification.type === 'success' ? '#155724' : '#721c24',
           top: isMobile ? '10px' : '20px',
           right: isMobile ? '10px' : '20px',
-          maxWidth: isMobile ? '90%' : 'auto'
+          left: isMobile ? '10px' : 'auto',
+          fontSize: isMobile ? '12px' : '14px'
         }}>
           {notification.message}
         </div>
       )}
 
-      <div style={styles.main}>
-        <div style={{
-          ...styles.sidebar,
-          display: isMobile && !isSidebarOpen ? 'none' : 'block',
-          position: isMobile ? 'fixed' : 'relative',
-          zIndex: 100,
-          height: isMobile ? '100%' : 'auto',
-          width: isMobile ? '100%' : '200px',
-          top: 0,
-          left: 0,
-          backgroundColor: '#111'
-        }}>
-          {isMobile && (
-             <button onClick={() => setIsSidebarOpen(false)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', color: '#E50914', fontSize: '24px' }}>✕</button>
-          )}
-          <div style={{ marginTop: isMobile ? '50px' : '0' }}>
-            <div
-              style={{
-                ...styles.sidebarItem,
-                borderLeftColor: activeTab === 'dashboard' ? '#E50914' : 'transparent',
-                color: activeTab === 'dashboard' ? '#E50914' : '#aaa',
-                backgroundColor: activeTab === 'dashboard' ? '#1a1a1a' : 'transparent'
-              }}
-              onClick={() => { setActiveTab('dashboard'); if (isMobile) setIsSidebarOpen(false); }}
-            >
-              Dashboard
-            </div>
-            <div
-              style={{
-                ...styles.sidebarItem,
-                borderLeftColor: activeTab === 'barbers' ? '#E50914' : 'transparent',
-                color: activeTab === 'barbers' ? '#E50914' : '#aaa',
-                backgroundColor: activeTab === 'barbers' ? '#1a1a1a' : 'transparent'
-              }}
-              onClick={() => { setActiveTab('barbers'); if (isMobile) setIsSidebarOpen(false); }}
-            >
-              Barbeiros
-            </div>
-            <div
-              style={{
-                ...styles.sidebarItem,
-                borderLeftColor: activeTab === 'services' ? '#E50914' : 'transparent',
-                color: activeTab === 'services' ? '#E50914' : '#aaa',
-                backgroundColor: activeTab === 'services' ? '#1a1a1a' : 'transparent'
-              }}
-              onClick={() => { setActiveTab('services'); if (isMobile) setIsSidebarOpen(false); }}
-            >
-              Serviços
-            </div>
-            <div
-              style={{
-                ...styles.sidebarItem,
-                borderLeftColor: activeTab === 'appointments' ? '#E50914' : 'transparent',
-                color: activeTab === 'appointments' ? '#E50914' : '#aaa',
-                backgroundColor: activeTab === 'appointments' ? '#1a1a1a' : 'transparent'
-              }}
-              onClick={() => { setActiveTab('appointments'); if (isMobile) setIsSidebarOpen(false); }}
-            >
-              Agendamentos
-            </div>
-            <div
-              style={{
-                ...styles.sidebarItem,
-                borderLeftColor: activeTab === 'settings' ? '#E50914' : 'transparent',
-                color: activeTab === 'settings' ? '#E50914' : '#aaa',
-                backgroundColor: activeTab === 'settings' ? '#1a1a1a' : 'transparent'
-              }}
-              onClick={() => { setActiveTab('settings'); if (isMobile) setIsSidebarOpen(false); }}
-            >
-              Configurações
-            </div>
-            <div
-              style={{
-                ...styles.sidebarItem,
-                borderLeftColor: activeTab === 'gallery' ? '#E50914' : 'transparent',
-                color: activeTab === 'gallery' ? '#E50914' : '#aaa',
-                backgroundColor: activeTab === 'gallery' ? '#1a1a1a' : 'transparent'
-              }}
-              onClick={() => { setActiveTab('gallery'); if (isMobile) setIsSidebarOpen(false); }}
-            >
-              Galeria
-            </div>
+      <div style={{...styles.main, flexDirection: isMobile ? 'column' : 'row'}}>
+        <div style={{...styles.sidebar, width: isMobile ? '100%' : '200px', display: isMobile && !isSidebarOpen ? 'none' : 'block'}}>
+          <div 
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'dashboard' ? '#E50914' : 'transparent',
+              color: activeTab === 'dashboard' ? '#E50914' : '#aaa',
+              backgroundColor: activeTab === 'dashboard' ? '#1a1a1a' : 'transparent'
+            }}
+            onClick={() => { setActiveTab('dashboard'); if (isMobile) setIsSidebarOpen(false); }}
+          >
+            Dashboard
+          </div>
+          <div
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'barbers' ? '#E50914' : 'transparent',
+              color: activeTab === 'barbers' ? '#E50914' : '#aaa',
+              backgroundColor: activeTab === 'barbers' ? '#1a1a1a' : 'transparent'
+            }}
+            onClick={() => { setActiveTab('barbers'); if (isMobile) setIsSidebarOpen(false); }}
+          >
+            Barbeiros
+          </div>
+          <div
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'services' ? '#E50914' : 'transparent',
+              color: activeTab === 'services' ? '#E50914' : '#aaa',
+              backgroundColor: activeTab === 'services' ? '#1a1a1a' : 'transparent'
+            }}
+            onClick={() => { setActiveTab('services'); if (isMobile) setIsSidebarOpen(false); }}
+          >
+            Serviços
+          </div>
+          <div
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'appointments' ? '#E50914' : 'transparent',
+              color: activeTab === 'appointments' ? '#E50914' : '#aaa',
+              backgroundColor: activeTab === 'appointments' ? '#1a1a1a' : 'transparent'
+            }}
+            onClick={() => { setActiveTab('appointments'); if (isMobile) setIsSidebarOpen(false); }}
+          >
+            Agendamentos
+          </div>
+          <div
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'settings' ? '#E50914' : 'transparent',
+              color: activeTab === 'settings' ? '#E50914' : '#aaa',
+              backgroundColor: activeTab === 'settings' ? '#1a1a1a' : 'transparent'
+            }}
+            onClick={() => { setActiveTab('settings'); if (isMobile) setIsSidebarOpen(false); }}
+          >
+            Configurações
+          </div>
+          <div
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'gallery' ? '#E50914' : 'transparent',
+              color: activeTab === 'gallery' ? '#E50914' : '#aaa',
+              backgroundColor: activeTab === 'gallery' ? '#1a1a1a' : 'transparent'
+            }}
+            onClick={() => { setActiveTab('gallery'); if (isMobile) setIsSidebarOpen(false); }}
+          >
+            Galeria
+          </div>
+          <div
+            style={{
+              ...styles.sidebarItem,
+              borderLeftColor: activeTab === 'reengagement' ? '#E50914' : 'transparent',
+              color: activeTab === 'reengagement' ? '#E50914' : '#aaa',
+              backgroundColor: activeTab === 'reengagement' ? '#1a1a1a' : 'transparent'
+            }}
+            onClick={() => { setActiveTab('reengagement'); if (isMobile) setIsSidebarOpen(false); }}
+          >
+            Reengajamento
           </div>
         </div>
+
+        {isMobile && (
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            style={{
+              backgroundColor: '#111',
+              color: '#E50914',
+              border: 'none',
+              padding: '10px',
+              fontWeight: 'bold',
+              width: '100%',
+              borderBottom: '1px solid #222'
+            }}
+          >
+            {isSidebarOpen ? 'FECHAR MENU' : 'ABRIR MENU'}
+          </button>
+        )}
 
         <main style={{...styles.content, padding: isMobile ? '15px' : '30px'}}>
           {activeTab === 'dashboard' && (
@@ -680,71 +781,40 @@ export default function AdminDashboard() {
                             onClick={() => setBarberForm({ ...barberForm, photo_url: '' })}
                             style={styles.removePhotoBtn}
                           >
-                            ✕ Remover
+                            Remover Foto
                           </button>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <button type="submit" style={styles.submitBtn} disabled={loading || uploadLoading}>
-                    {loading ? 'Salvando...' : uploadLoading ? 'Enviando foto...' : 'Salvar Barbeiro'}
+                  <button type="submit" style={styles.submitBtn} disabled={loading}>
+                    {loading ? 'Salvando...' : (isEditingBarber ? 'Atualizar Barbeiro' : 'Criar Barbeiro')}
                   </button>
                 </form>
               )}
 
-              <div style={{...styles.table, overflowX: 'auto'}}>
+              <div style={styles.table}>
+                <div style={{...styles.tableHeader, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(120px, 1fr))'}}>
+                  <div style={styles.tableCell}>Nome</div>
+                  {!isMobile && <div style={styles.tableCell}>Email</div>}
+                  {!isMobile && <div style={styles.tableCell}>Telefone</div>}
+                  <div style={styles.tableCell}>Ações</div>
+                </div>
                 {barbers.length === 0 ? (
-                  <p style={styles.emptyState}>Nenhum barbeiro cadastrado</p>
+                  <div style={styles.emptyState}>Nenhum barbeiro cadastrado</div>
                 ) : (
-                  <div style={{ minWidth: isMobile ? '600px' : 'auto' }}>
-                    <div style={{...styles.tableHeader, gridTemplateColumns: '80px 2fr 2fr 2fr 2fr 1.5fr'}}>
-                      <div style={styles.tableCell}>Foto</div>
-                      <div style={styles.tableCell}>Nome</div>
-                      <div style={styles.tableCell}>Email</div>
-                      <div style={styles.tableCell}>Telefone</div>
-                      <div style={styles.tableCell}>Especialidade</div>
-                      <div style={styles.tableCell}>Ações</div>
-                    </div>
-                    {barbers.map((barber) => (
-                      <div key={barber.id} style={{...styles.tableRow, gridTemplateColumns: '80px 2fr 2fr 2fr 2fr 1.5fr'}}>
-                        <div style={styles.tableCell}>
-                          {barber.photo_url ? (
-                            <img
-                              src={barber.photo_url}
-                              alt={barber.name}
-                              style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
-                            />
-                          ) : (
-                            <div
-                              style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '50%',
-                                backgroundColor: '#222',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                            >
-                              👨‍💼
-                            </div>
-                          )}
-                        </div>
-                        <div style={styles.tableCell}>{barber.name}</div>
-                        <div style={styles.tableCell}>{barber.email || '-'}</div>
-                        <div style={styles.tableCell}>{barber.phone}</div>
-                        <div style={styles.tableCell}>{barber.specialty || '-'}
-                        </div>
-                        <div style={styles.tableCell}>
-                          <button onClick={() => handleEditBarber(barber)} style={{...styles.addBtn, marginBottom: 0, padding: '6px 12px', fontSize: '12px', marginRight: '5px', backgroundColor: '#007bff'}}>Editar</button>
-                          <button onClick={() => handleDeleteBarber(barber.id)} style={styles.deleteBtn}>
-                            Deletar
-                          </button>
-                        </div>
+                  barbers.map((barber) => (
+                    <div key={barber.id} style={{...styles.tableRow, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(120px, 1fr))'}}>
+                      <div style={styles.tableCell}>{barber.name}</div>
+                      {!isMobile && <div style={styles.tableCell}>{barber.email}</div>}
+                      {!isMobile && <div style={styles.tableCell}>{barber.phone}</div>}
+                      <div style={{...styles.tableCell, display: 'flex', gap: '5px', flexDirection: isMobile ? 'column' : 'row'}}>
+                        <button onClick={() => handleEditBarber(barber)} style={{...styles.deleteBtn, backgroundColor: '#007bff'}}>Editar</button>
+                        <button onClick={() => handleDeleteBarber(barber.id)} style={styles.deleteBtn}>Deletar</button>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
@@ -776,7 +846,7 @@ export default function AdminDashboard() {
                   />
                   <input
                     type="number"
-                    placeholder="Preço"
+                    placeholder="Preço (R$)"
                     value={serviceForm.price}
                     onChange={(e) => setServiceForm({ ...serviceForm, price: parseFloat(e.target.value) })}
                     style={styles.input}
@@ -791,37 +861,31 @@ export default function AdminDashboard() {
                     required
                   />
                   <button type="submit" style={styles.submitBtn} disabled={loading}>
-                    {loading ? 'Salvando...' : 'Salvar Serviço'}
+                    {loading ? 'Criando...' : 'Criar Serviço'}
                   </button>
                 </form>
               )}
 
-              <div style={{...styles.table, overflowX: 'auto'}}>
+              <div style={styles.table}>
+                <div style={{...styles.tableHeader, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(120px, 1fr))'}}>
+                  <div style={styles.tableCell}>Nome</div>
+                  {!isMobile && <div style={styles.tableCell}>Preço</div>}
+                  {!isMobile && <div style={styles.tableCell}>Duração</div>}
+                  <div style={styles.tableCell}>Ações</div>
+                </div>
                 {services.length === 0 ? (
-                  <p style={styles.emptyState}>Nenhum serviço cadastrado</p>
+                  <div style={styles.emptyState}>Nenhum serviço cadastrado</div>
                 ) : (
-                  <div style={{ minWidth: isMobile ? '500px' : 'auto' }}>
-                    <div style={styles.tableHeader}>
-                      <div style={styles.tableCell}>Serviço</div>
-                      <div style={styles.tableCell}>Descrição</div>
-                      <div style={styles.tableCell}>Preço</div>
-                      <div style={styles.tableCell}>Duração</div>
-                      <div style={styles.tableCell}>Ações</div>
-                    </div>
-                    {services.map((service) => (
-                      <div key={service.id} style={styles.tableRow}>
-                        <div style={styles.tableCell}>{service.name}</div>
-                        <div style={styles.tableCell}>{service.description || '-'}</div>
-                        <div style={styles.tableCell}>R$ {parseFloat(service.price).toFixed(2)}</div>
-                        <div style={styles.tableCell}>{service.duration} min</div>
-                        <div style={styles.tableCell}>
-                          <button onClick={() => handleDeleteService(service.id)} style={styles.deleteBtn}>
-                            Deletar
-                          </button>
-                        </div>
+                  services.map((service) => (
+                    <div key={service.id} style={{...styles.tableRow, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(120px, 1fr))'}}>
+                      <div style={styles.tableCell}>{service.name}</div>
+                      {!isMobile && <div style={styles.tableCell}>R$ {parseFloat(service.price).toFixed(2)}</div>}
+                      {!isMobile && <div style={styles.tableCell}>{service.duration} min</div>}
+                      <div style={styles.tableCell}>
+                        <button onClick={() => handleDeleteService(service.id)} style={styles.deleteBtn}>Deletar</button>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
@@ -830,26 +894,39 @@ export default function AdminDashboard() {
           {activeTab === 'appointments' && (
             <div>
               <h2 style={styles.sectionTitle}>Agendamentos</h2>
-              <div style={{...styles.table, overflowX: 'auto'}}>
+              <div style={{...styles.statsGrid, gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '30px'}}>
+                <div style={styles.statCard}>
+                  <p style={styles.statLabel}>Total</p>
+                  <p style={{...styles.statValue, fontSize: isMobile ? '24px' : '32px'}}>{appointments.length}</p>
+                </div>
+                <div style={styles.statCard}>
+                  <p style={styles.statLabel}>Hoje</p>
+                  <p style={{...styles.statValue, fontSize: isMobile ? '24px' : '32px'}}>
+                    {appointments.filter(a => a.date === new Date().toISOString().split('T')[0]).length}
+                  </p>
+                </div>
+              </div>
+
+              <div style={styles.table}>
+                <div style={{...styles.tableHeader, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(120px, 1fr))'}}>
+                  <div style={styles.tableCell}>Data/Hora</div>
+                  <div style={styles.tableCell}>Cliente</div>
+                  {!isMobile && <div style={styles.tableCell}>Barbeiro</div>}
+                  {!isMobile && <div style={styles.tableCell}>Serviço</div>}
+                </div>
                 {appointments.length === 0 ? (
-                  <p style={styles.emptyState}>Nenhum agendamento</p>
+                  <div style={styles.emptyState}>Nenhum agendamento</div>
                 ) : (
-                  <div style={{ minWidth: isMobile ? '500px' : 'auto' }}>
-                    <div style={styles.tableHeader}>
-                      <div style={styles.tableCell}>Data</div>
-                      <div style={styles.tableCell}>Hora</div>
-                      <div style={styles.tableCell}>Barbeiro</div>
-                      <div style={styles.tableCell}>Cliente</div>
-                    </div>
-                    {appointments.map((apt) => (
-                      <div key={apt.id} style={styles.tableRow}>
-                        <div style={styles.tableCell}>{new Date(apt.date).toLocaleDateString('pt-BR')}</div>
-                        <div style={styles.tableCell}>{apt.time}</div>
-                        <div style={styles.tableCell}>{apt.barber_id}</div>
-                        <div style={styles.tableCell}>{apt.phone}</div>
+                  appointments.map((apt) => (
+                    <div key={apt.id} style={{...styles.tableRow, gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(120px, 1fr))'}}>
+                      <div style={styles.tableCell}>
+                        {new Date(apt.date).toLocaleDateString('pt-BR')} {apt.time}
                       </div>
-                    ))}
-                  </div>
+                      <div style={styles.tableCell}>{apt.client_name}</div>
+                      {!isMobile && <div style={styles.tableCell}>{apt.barber_name}</div>}
+                      {!isMobile && <div style={styles.tableCell}>{apt.service_name}</div>}
+                    </div>
+                  ))
                 )}
               </div>
             </div>
@@ -858,71 +935,32 @@ export default function AdminDashboard() {
           {activeTab === 'settings' && (
             <div>
               <h2 style={styles.sectionTitle}>Configurações da Barbearia</h2>
-
-              <button
-                onClick={() => {
-                  setIsEditingSettings(!isEditingSettings);
-                  setEditSettings(settings || {});
-                }}
-                style={styles.addBtn}
-              >
-                {isEditingSettings ? 'Cancelar' : 'Editar'}
-              </button>
-
-              {!isEditingSettings && settings && (
+              {!isEditingSettings ? (
                 <div style={styles.configCard}>
                   <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Nome</label>
-                    <p style={styles.configValue}>{settings.name}</p>
+                    <label style={styles.configLabel}>Nome da Barbearia</label>
+                    <p style={styles.configValue}>{settings?.name || "Não configurado"}</p>
+                  </div>
+                  <div style={styles.configItem}>
+                    <label style={styles.configLabel}>Link da Barbearia (Slug)</label>
+                    <p style={styles.configValue}>{settings?.slug || "Não configurado"}</p>
                   </div>
                   <div style={styles.configItem}>
                     <label style={styles.configLabel}>Telefone</label>
-                    <p style={styles.configValue}>{settings.phone}</p>
-                  </div>
-                  <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Email</label>
-                    <p style={styles.configValue}>{settings.email}</p>
-                  </div>
-                  <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Descrição</label>
-                    <p style={styles.configValue}>{settings.description || '-'}</p>
+                    <p style={styles.configValue}>{settings?.phone || "Não configurado"}</p>
                   </div>
                   <div style={styles.configItem}>
                     <label style={styles.configLabel}>Endereço</label>
-                    <p style={styles.configValue}>{settings.address}, {settings.city} - {settings.state}</p>
+                    <p style={styles.configValue}>{settings?.address || "Não configurado"}</p>
                   </div>
-                  <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Cores</label>
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.primary_color, borderRadius: '4px', border: '1px solid #333' }} title="Primária"></div>
-                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.secondary_color, borderRadius: '4px', border: '1px solid #333' }} title="Secundária"></div>
-                      <div style={{ width: '30px', height: '30px', backgroundColor: settings.accent_color, borderRadius: '4px', border: '1px solid #333' }} title="Destaque"></div>
-                    </div>
-                  </div>
-                  <div style={styles.configItem}>
-                    <label style={styles.configLabel}>Imagens</label>
-                    <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
-                      {settings.logo_url && (
-                        <div>
-                          <p style={{ fontSize: '10px', color: '#aaa', marginBottom: '5px' }}>Logo</p>
-                          <img src={settings.logo_url} alt="Logo" style={{ height: '40px', borderRadius: '4px' }} />
-                        </div>
-                      )}
-                      {settings.banner_url && (
-                        <div>
-                          <p style={{ fontSize: '10px', color: '#aaa', marginBottom: '5px' }}>Banner</p>
-                          <img src={settings.banner_url} alt="Banner" style={{ height: '60px', borderRadius: '4px' }} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <button onClick={() => setIsEditingSettings(true)} style={styles.addBtn}>
+                    Editar Configurações
+                  </button>
                 </div>
-              )}
-
-              {isEditingSettings && (
+              ) : (
                 <div style={styles.form}>
                   <form onSubmit={handleSaveSettings}>
-                    <h3 style={styles.formSectionTitle}>Informações Básicas</h3>
+                    <h3 style={{...styles.formSectionTitle, marginTop: 0}}>Informações Básicas</h3>
                     <input
                       type="text"
                       placeholder="Nome da Barbearia"
@@ -931,17 +969,15 @@ export default function AdminDashboard() {
                         setEditSettings({ ...editSettings, name: e.target.value })
                       }
                       style={styles.input}
-                      required
                     />
                     <input
                       type="text"
-                      placeholder="Slug da Barbearia (Ex: barbearia-do-ze)"
+                      placeholder="Link da Barbearia (Ex: minha-barbearia)"
                       value={editSettings.slug || ""}
                       onChange={(e) =>
                         setEditSettings({ ...editSettings, slug: e.target.value })
                       }
                       style={styles.input}
-                      required
                     />
                     <input
                       type="text"
@@ -954,19 +990,10 @@ export default function AdminDashboard() {
                     />
                     <input
                       type="email"
-                      placeholder="Email de Contato"
+                      placeholder="E-mail de Contato"
                       value={editSettings.email || ""}
                       onChange={(e) =>
                         setEditSettings({ ...editSettings, email: e.target.value })
-                      }
-                      style={styles.input}
-                    />
-                    <input
-                      type="text"
-                      placeholder="URL do Instagram"
-                      value={editSettings.instagramUrl || ""}
-                      onChange={(e) =>
-                        setEditSettings({ ...editSettings, instagramUrl: e.target.value })
                       }
                       style={styles.input}
                     />
@@ -976,13 +1003,13 @@ export default function AdminDashboard() {
                       onChange={(e) =>
                         setEditSettings({ ...editSettings, description: e.target.value })
                       }
-                      style={{ ...styles.input, minHeight: "80px" }}
-                    ></textarea>
+                      style={{ ...styles.input, height: "80px", resize: "none" }}
+                    />
 
-                    <h3 style={styles.formSectionTitle}>Endereço</h3>
+                    <h3 style={styles.formSectionTitle}>Localização</h3>
                     <input
                       type="text"
-                      placeholder="Endereço"
+                      placeholder="Endereço Completo"
                       value={editSettings.address || ""}
                       onChange={(e) =>
                         setEditSettings({ ...editSettings, address: e.target.value })
@@ -1172,6 +1199,15 @@ export default function AdminDashboard() {
                 )}
               </div>
             </div>
+          )}
+
+          {activeTab === "reengagement" && (
+            <ReengagementTab 
+              tenantId={localStorage.getItem('tenant_id') || 1}
+              apiCall={apiCall}
+              showNotification={showNotification}
+              isMobile={isMobile}
+            />
           )}
         </main>
       </div>
