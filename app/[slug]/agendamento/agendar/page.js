@@ -1,12 +1,12 @@
 "use client";
-
+ 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-
+ 
 export default function AgendarPage() {
   const params = useParams();
   const slug = params.slug;
-
+ 
   // Estados de Dados e Interface
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState('');
@@ -23,20 +23,20 @@ export default function AgendarPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [tenantSettings, setTenantSettings] = useState(null);
   const [tenantId, setTenantId] = useState(null);
-
+ 
   // Tema Dinâmico
   const [theme, setTheme] = useState({
     primary: "#E50914",
     secondary: "#0A0A0A",
     accent: "#ffffff"
   });
-
+ 
   // Cálculo de Total
   const totalPrice = selectedServices.reduce((sum, serviceId) => {
-    const service = services.find(s => s.id === serviceId);
+    const service = services.find(s => Number(s.id) === Number(serviceId));
     return sum + (service ? parseFloat(service.price) : 0);
   }, 0);
-
+ 
   // Detecção de Mobile
   useEffect(() => {
     const handleResize = () => {
@@ -46,7 +46,7 @@ export default function AgendarPage() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
+ 
   // Carregamento de Dados Multi-tenant
   useEffect(() => {
     async function loadPageData() {
@@ -72,16 +72,16 @@ export default function AgendarPage() {
             secondary: settings.secondary_color || "#0A0A0A",
             accent: settings.accent_color || "#ffffff"
           });
-
+ 
           // Busca Barbeiros e Serviços em paralelo
           const [barbersRes, servicesRes] = await Promise.all([
             fetch(`/api/public/barbers?tenant_id=${realTenantId}`),
             fetch(`/api/services?tenant_id=${realTenantId}`)
           ]);
-
+ 
           const bData = await barbersRes.json();
           const sData = await servicesRes.json();
-
+ 
           setBarbers(bData.data || []);
           setServices(sData.data || []);
         } else {
@@ -96,7 +96,7 @@ export default function AgendarPage() {
     }
     loadPageData();
   }, [slug]);
-
+ 
   // Busca de Horários Disponíveis
   useEffect(() => {
     if (selectedDate && barberId && tenantId) {
@@ -111,16 +111,17 @@ export default function AgendarPage() {
         });
     }
   }, [selectedDate, barberId, tenantId]);
-
+ 
   // Seleção de Serviços
   function toggleService(serviceId) {
+    const id = Number(serviceId);
     setSelectedServices(prev => 
-      prev.includes(serviceId) 
-        ? prev.filter(id => id !== serviceId)
-        : [...prev, serviceId]
+      prev.includes(id) 
+        ? prev.filter(existing => existing !== id)
+        : [...prev, id]
     );
   }
-
+ 
   // Formatação de Mensagem WhatsApp
   function formatWhatsAppMessage() {
     const selectedBarberName = barbers.find(b => b.id == barberId)?.name || "Barbeiro";
@@ -128,10 +129,10 @@ export default function AgendarPage() {
       const s = services.find(serv => serv.id === id);
       return s ? `• ${s.name} (R$ ${parseFloat(s.price).toFixed(2)})` : "";
     }).filter(Boolean).join("\n");
-
+ 
     const [year, month, day] = selectedDate.split('-');
     const formattedDate = `${day}/${month}/${year}`;
-
+ 
     return `🚨 *NOVO AGENDAMENTO* 🚨\n\n` +
            `👤 *Cliente:* ${clientName}\n` +
            `📞 *Telefone:* ${clientPhone}\n\n` +
@@ -142,14 +143,14 @@ export default function AgendarPage() {
            `💰 *Total:* R$ ${totalPrice.toFixed(2)}\n\n` +
            `_Por favor, confirme se o horário está disponível!_`;
   }
-
+ 
   // Finalização do Agendamento
   async function handleBookAppointment() {
     if (!clientName || !clientPhone) {
       setMessage('❌ Por favor, preencha seu nome e WhatsApp.');
       return;
     }
-
+ 
     setLoading(true);
     try {
       const res = await fetch('/api/public/book-appointment', {
@@ -166,7 +167,7 @@ export default function AgendarPage() {
           appointmentTime: selectedTime,
         }),
       });
-
+ 
       if (res.ok) {
         const result = await res.json();
         if (result.success) {
@@ -176,7 +177,7 @@ export default function AgendarPage() {
           const rawPhone = tenantSettings?.phone || "";
           const cleanPhone = rawPhone.replace(/\D/g, "");
           const finalPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
-
+ 
           setTimeout(() => {
             if (finalPhone.length > 5) {
               window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(whatsappMessage )}`, '_blank' );
@@ -195,22 +196,22 @@ export default function AgendarPage() {
       setLoading(false);
     }
   }
-
+ 
   // Auxiliares do Calendário
   function getDaysInMonth(date) { return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate(); }
   function getFirstDayOfMonth(date) { return new Date(date.getFullYear(), date.getMonth(), 1).getDay(); }
   function formatDate(day) { return `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`; }
-
+ 
   const today = new Date();
   today.setHours(0,0,0,0);
-
+ 
   const days = [];
   const daysInMonth = getDaysInMonth(currentMonth);
   const firstDay = getFirstDayOfMonth(currentMonth);
-
+ 
   for (let i = 0; i < firstDay; i++) days.push(null);
   for (let i = 1; i <= daysInMonth; i++) days.push(i);
-
+ 
   if (loading && !tenantSettings) {
     return (
       <div style={{...styles.container, background: theme.secondary, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
@@ -218,7 +219,7 @@ export default function AgendarPage() {
       </div>
     );
   }
-
+ 
   return (
     <div style={{...styles.container, background: theme.secondary}}>
       <h1 style={{...styles.title, color: theme.primary}}>Agendar Horário</h1>
@@ -234,9 +235,9 @@ export default function AgendarPage() {
                 onClick={() => toggleService(service.id)}
                 style={{
                   ...styles.serviceCard,
-                  borderColor: selectedServices.includes(service.id) ? theme.primary : '#333',
-                  backgroundColor: selectedServices.includes(service.id) ? `${theme.primary}20` : '#111',
-                  borderWidth: selectedServices.includes(service.id) ? '2px' : '1px',
+                  borderColor: selectedServices.includes(Number(service.id)) ? theme.primary : '#333',
+                  backgroundColor: selectedServices.includes(Number(service.id)) ? `${theme.primary}20` : '#111',
+                  borderWidth: selectedServices.includes(Number(service.id)) ? '2px' : '1px',
                   padding: isMobile ? '12px' : '15px',
                 }}
               >
@@ -249,7 +250,7 @@ export default function AgendarPage() {
             ))}
           </div>
         </div>
-
+ 
         {/* 2. SEÇÃO DE BARBEIRO (Aparece após selecionar serviço) */}
         {selectedServices.length > 0 && (
           <div style={styles.barberSection}>
@@ -275,7 +276,7 @@ export default function AgendarPage() {
             </div>
           </div>
         )}
-
+ 
         {/* 3. SEÇÃO DE CALENDÁRIO (Aparece após selecionar barbeiro) */}
         {barberId && (
           <div style={styles.calendarSection}>
@@ -316,7 +317,7 @@ export default function AgendarPage() {
             </div>
           </div>
         )}
-
+ 
         {/* 4. SEÇÃO DE HORÁRIOS (Aparece após selecionar data) */}
         {selectedDate && (
           <div style={styles.timeSection}>
@@ -340,7 +341,7 @@ export default function AgendarPage() {
             </div>
           </div>
         )}
-
+ 
         {/* 5. SEÇÃO DE DADOS FINAIS (Aparece após selecionar horário) */}
         {selectedTime && (
           <div style={styles.formSection}>
@@ -356,12 +357,12 @@ export default function AgendarPage() {
             {message && <p style={{...styles.message, color: message.includes('✅') ? '#4ade80' : '#f87171'}}>{message}</p>}
           </div>
         )}
-
+ 
       </div>
     </div>
   );
 }
-
+ 
 // ESTILOS ORIGINAIS COMPLETOS
 const styles = {
   container: { minHeight: '100vh', padding: '40px 20px', color: '#fff', fontFamily: 'Arial, sans-serif' },
