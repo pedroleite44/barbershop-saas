@@ -1,6 +1,11 @@
 ﻿import { sql } from "../../../lib/db.js";
 import { NextResponse } from "next/server";
 
+// Adicionado suporte a POST para compatibilidade com o frontend administrativo
+export async function POST(request) {
+  return await PUT(request);
+}
+
 export async function PUT(request) {
   try {
     const body = await request.json();
@@ -72,7 +77,7 @@ export async function PUT(request) {
       RETURNING *;
     `;
 
-    // CORREÇÃO AQUI: Usando sql.query para suportar o formato de placeholders ($1, $2...)
+    // Utiliza sql.query para suportar o formato de placeholders ($1, $2...)
     const result = await sql.query(query, [tenantId, ...setValues]);
 
     if (result.length === 0) {

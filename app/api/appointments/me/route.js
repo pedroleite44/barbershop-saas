@@ -28,6 +28,7 @@ export async function GET(request) {
 
       const barberId = barberRecord[0].id;
 
+      // Selecionamos explicitamente os campos necessários: client_name, phone, service_names
       appointments = await sql`
         SELECT a.id, a.client_name, a.date, a.time, a.status, a.phone, a.service_names,
                b.name as barber_name
@@ -50,13 +51,18 @@ export async function GET(request) {
       return NextResponse.json({ success: false, error: 'Acesso negado' }, { status: 403 });
     }
 
+    // Enriquecemos os dados para garantir que o frontend receba os nomes de campos esperados
     const enrichedData = appointments.map(app => ({
       ...app,
+      // O dashboard espera 'client_name', 'phone' e 'service_name'
+      client_name: app.client_name || 'Cliente',
+      client_phone: app.phone || 'Sem número',
       service_name: app.service_names || 'Serviço'
     }));
 
     return NextResponse.json({ success: true, data: enrichedData });
   } catch (error) {
+    console.error("Erro na API de agendamentos:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

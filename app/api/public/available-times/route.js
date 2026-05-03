@@ -72,14 +72,15 @@ export async function GET(request) {
       config.interval_minutes
     );
 
-    // Usamos to_char para garantir que o formato do banco case com o formato da função (HH:mm)
+    // MODIFICAÇÃO: Alterado de status = 'confirmed' para status != 'cancelled'
+    // Isso garante que horários pendentes também fiquem indisponíveis.
     const appointments = await sql`
       SELECT to_char(time, 'HH24:MI') AS time
       FROM appointments
       WHERE tenant_id = ${tenantId}
         AND barber_id = ${barberId}
         AND date = ${date}
-        AND status = 'confirmed'
+        AND status != 'cancelled'
       ORDER BY time ASC
     `;
 

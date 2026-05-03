@@ -290,7 +290,12 @@ export default function AgendarPage() {
               {days.map((day, i) => {
                 if (!day) return <div key={`empty-${i}`} />;
                 const dateStr = formatDate(day);
-                const isPast = new Date(dateStr) < today;
+                
+                // CORREÇÃO: Criar data no fuso horário local para habilitar o dia de hoje
+                const [y, m, d] = dateStr.split('-').map(Number);
+                const calendarDate = new Date(y, m - 1, d);
+                const isPast = calendarDate < today;
+                
                 const isSelected = selectedDate === dateStr;
                 return (
                   <button
